@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a5f9e">
+<title>Classroom Setup</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../lap/icon.svg">
+<link rel="stylesheet" href="../shared/classroom.css">
+<style>
+textarea#names{width:100%;min-height:260px;font:16px var(--sans);line-height:1.6}
+.rooms{display:flex;flex-direction:column;gap:10px}
+.roomrow{display:grid;grid-template-columns:1fr 150px 1fr;gap:8px;align-items:center}
+.dims{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--muted)}
+.dims input{width:70px;padding:10px}
+.unseated{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:14px;background:var(--bg)}
+.saved{color:var(--got);font-weight:600;font-size:14px}
+@media (max-width:620px){.roomrow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <div class="bar"><h1 class="grow">Classroom setup</h1><a class="btn ghost" href="../lap/">Lap Tracker</a></div>
+  <p class="hint">Classes, rooms and seating charts are shared by every classroom app on this tablet. Nothing leaves the tablet.</p>
+
+  <section class="panel">
+    <h2>Class roster</h2>
+    <div class="bar">
+      <select id="cls" aria-label="Class"></select>
+      <span class="hint">Usually meets in</span>
+      <select id="defroom" class="grow" aria-label="Usual room"></select>
+    </div>
+    <textarea id="names" placeholder="One student per line, e.g.&#10;Jayden R&#10;Amira S" aria-label="Students, one per line"></textarea>
+    <div class="bar"><button class="primary" id="saveroster">Save roster</button><span id="rcount" class="hint"></span><span id="rsaved" class="saved"></span></div>
+  </section>
+
+  <section class="panel">
+    <h2>Rooms</h2>
+    <div class="rooms" id="rooms"></div>
+    <div class="bar"><button class="primary" id="saverooms">Save rooms</button><span id="msaved" class="saved"></span></div>
+    <p class="hint">Grid: rows of desks, row A at the front. Pods: groups of desks. List: no seats, students in alphabetical order.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Seating chart</h2>
+    <div class="bar">
+      <select id="scls" aria-label="Class for seating"></select>
+      <select id="sroom" class="grow" aria-label="Room for seating"></select>
+    </div>
+    <p class="hint" id="listnote" hidden>This room uses an alphabetical list, so there's no seating chart to set.</p>
+    <div id="chartwrap">
+      <div class="board">Front · Board</div>
+      <div id="seats" class="editing" style="margin-top:10px"></div>
+      <div class="panel" style="margin-top:10px">
+        <div id="selabel" style="font-weight:700">Tap a seat, then pick a student</div>
+        <select id="pick" disabled aria-label="Student for this seat"></select>
+        <div><span class="hint">Not seated yet:</span> <div class="unseated" id="unseated"></div></div>
+        <div class="bar"><button class="ghost" id="clearchart">Clear this chart</button></div>
+        <div class="bar" id="clearconfirm" hidden><span>Remove everyone from this chart?</span><button class="danger" id="cyes">Clear</button><button class="ghost" id="cno">Keep</button></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="../shared/classroom.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+let D=Classroom.load();
+let cls=Object.keys(D.classes)[0], scls=cls, sroom=Classroom.roomFor(D,scls), sel=null, cells=[];
+const flash=(id,msg)=>{$(id).textContent=msg;setTimeout(()=>$(id).textContent='',1800)};
+const opts=(obj,label)=>Object.keys(obj).map(k=>`<option value="${esc(k)}">${esc(label(obj[k]))}</option>`).join('');
+
+// roster
+function showRoster(){
+  $('cls').innerHTML=opts(D.classes,c=>c.name); $('cls').value=cls;
+  $('defroom').innerHTML=opts(D.rooms,r=>r.name); $('defroom').value=Classroom.roomFor(D,cls);
+  $('names').value=(D.classes[cls].students||[]).join('\n');
+  $('rcount').textContent=(D.classes[cls].students||[]).length+' students';
+}
+$('cls').addEventListener('change',e=>{cls=e.target.value;showRoster();});
+$('defroom').addEventListener('change',e=>{D=Classroom.load();D.defaultRoom[cls]=e.target.value;Classroom.save(D);flash('rsaved','Saved');});
+$('saveroster').addEventListener('click',()=>{
+  D=Classroom.load();
+  const seen=new Set();
+  D.classes[cls].students=$('names').value.split('\n').map(s=>s.trim()).filter(s=>s&&!seen.has(s.toLowerCase())&&seen.add(s.toLowerCase()));
+  Classroom.save(D); showRoster(); buildChart(); flash('rsaved','Saved');
+});
+
+// rooms
+function showRooms(){
+  $('rooms').innerHTML=Object.keys(D.rooms).map(k=>{const r=D.rooms[k];
+    return `<div class="roomrow" data-k="${esc(k)}">
+      <input type="text" id="rn-${esc(k)}" value="${esc(r.name)}" aria-label="Room name">
+      <select id="rt-${esc(k)}" aria-label="Layout"><option value="grid">Grid</option><option value="pods">Pods</option><option value="list">List</option></select>
+      <div class="dims" id="rd-${esc(k)}"></div></div>`}).join('');
+  Object.keys(D.rooms).forEach(k=>{$('rt-'+k).value=D.rooms[k].type;dims(k);$('rt-'+k).addEventListener('change',()=>dims(k));});
+}
+function dims(k){
+  const r=D.rooms[k], t=$('rt-'+k).value, el=$('rd-'+k);
+  if(t==='grid') el.innerHTML=`<input type="number" min="1" max="10" id="ra-${k}" value="${r.rows||5}" aria-label="Rows"> rows × <input type="number" min="1" max="10" id="rb-${k}" value="${r.cols||5}" aria-label="Columns"> cols`;
+  else if(t==='pods') el.innerHTML=`<input type="number" min="1" max="10" id="ra-${k}" value="${r.pods||5}" aria-label="Pods"> pods × <input type="number" min="1" max="8" id="rb-${k}" value="${r.size||5}" aria-label="Desks per pod"> desks`;
+  else el.textContent='Alphabetical, no seats';
+}
+$('saverooms').addEventListener('click',()=>{
+  D=Classroom.load();
+  Object.keys(D.rooms).forEach(k=>{
+    const t=$('rt-'+k).value, n=$('rn-'+k).value.trim()||D.rooms[k].name;
+    const a=Math.max(1,Math.min(10,+($('ra-'+k)||{}).value||5)), b=Math.max(1,Math.min(10,+($('rb-'+k)||{}).value||5));
+    D.rooms[k]=t==='grid'?{name:n,type:t,rows:a,cols:b}:t==='pods'?{name:n,type:t,pods:a,size:b}:{name:n,type:'list'};
+  });
+  Classroom.save(D); showRooms(); showRoster(); fillSeatPickers(); buildChart(); flash('msaved','Saved');
+});
+
+// seating chart
+function fillSeatPickers(){
+  $('scls').innerHTML=opts(D.classes,c=>c.name); $('scls').value=scls;
+  $('sroom').innerHTML=opts(D.rooms,r=>r.name); $('sroom').value=sroom;
+}
+function buildChart(){
+  D=Classroom.load(); sel=null;
+  const isList=D.rooms[sroom].type==='list';
+  $('listnote').hidden=!isList; $('chartwrap').hidden=isList;
+  if(isList) return;
+  cells=Classroom.render($('seats'),Classroom.seats(D,sroom,scls));
+  paint();
+}
+function chart(){const k=scls+'|'+sroom; D.charts[k]=D.charts[k]||{}; return D.charts[k];}
+function paint(){
+  const ch=chart(), roster=D.classes[scls].students||[];
+  cells.forEach(({seat,el})=>{const nm=ch[seat.id]||'';
+    el.querySelector('.name').textContent=nm||'—'; el.dataset.empty=nm?0:1; el.classList.toggle('sel',seat.id===sel);});
+  const seated=new Set(Object.values(ch));
+  const left=roster.filter(n=>!seated.has(n));
+  $('unseated').innerHTML=left.length?left.map(n=>`<span class="chip">${esc(n)}</span>`).join(''):'<span class="hint">Everyone is seated.</span>';
+  const s=sel&&cells.find(c=>c.seat.id===sel);
+  $('selabel').textContent=s?'Seat '+s.seat.label:'Tap a seat, then pick a student';
+  $('pick').disabled=!s;
+  $('pick').innerHTML='<option value="">— Empty —</option>'+roster.map(n=>`<option value="${esc(n)}">${esc(n)}${seated.has(n)&&ch[sel]!==n?' (seated elsewhere)':''}</option>`).join('');
+  $('pick').value=s?(ch[sel]||''):'';
+}
+$('seats').addEventListener('click',e=>{const b=e.target.closest('.seat');if(!b)return;sel=b.dataset.id;paint();$('pick').focus();});
+$('pick').addEventListener('change',e=>{
+  if(!sel)return; D=Classroom.load(); const ch=chart(), v=e.target.value;
+  if(v){Object.keys(ch).forEach(k=>{if(ch[k]===v)delete ch[k]}); ch[sel]=v;} else delete ch[sel];
+  Classroom.save(D);
+  // move to the next empty seat to speed up entry
+  const next=cells.find(c=>!ch[c.seat.id]); sel=next?next.seat.id:sel; paint();
+});
+$('scls').addEventListener('change',e=>{scls=e.target.value;sroom=Classroom.roomFor(D,scls);$('sroom').value=sroom;buildChart();});
+$('sroom').addEventListener('change',e=>{sroom=e.target.value;buildChart();});
+$('clearchart').addEventListener('click',()=>$('clearconfirm').hidden=false);
+$('cno').addEventListener('click',()=>$('clearconfirm').hidden=true);
+$('cyes').addEventListener('click',()=>{D=Classroom.load();delete D.charts[scls+'|'+sroom];Classroom.save(D);$('clearconfirm').hidden=true;buildChart();});
+
+showRoster(); showRooms(); fillSeatPickers(); buildChart();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+/* Shared look for all classroom apps: tokens, controls, seat layouts (grid / pods / list) */
+:root{
+  --bg:#eef1f4; --card:#ffffff; --fg:#121a22; --muted:#55626e; --line:#c9d1d9; --accent:#2a5f9e;
+  --got:#1e7a46; --part:#b07a12; --not:#b3322e;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Roboto Mono", Menlo, monospace;
+  color-scheme: light;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f151b; --card:#19212a; --fg:#e9eef3; --muted:#9aa7b3; --line:#2d3946; --accent:#79aee6;
+  --got:#4cc382; --part:#e2b04a; --not:#ef7a72; color-scheme:dark}}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--fg);font-family:var(--sans);font-size:17px;line-height:1.4}
+main{max-width:800px;margin:0 auto;padding-block:14px 32px;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:14px}
+h1{font-size:24px;margin:0}
+h2{font-size:18px;margin:6px 0 0}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+input[type=text],input[type=number],select,textarea{font:500 17px var(--sans);padding:12px 14px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);box-sizing:border-box}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+select{min-height:52px}
+button,.btn{font:600 16px var(--sans);border-radius:10px;cursor:pointer;min-height:56px;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box}
+button:focus-visible,.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);color:var(--bg);border:0}
+.ghost{background:var(--card);color:var(--fg);border:2px solid var(--line)}
+.danger{background:var(--not);color:var(--bg);border:0}
+button:disabled{opacity:.45;cursor:default}
+.hint{font-size:14px;color:var(--muted);margin:0}
+.panel{display:flex;flex-direction:column;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+
+/* seats */
+.board{text-align:center;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-bottom:3px solid var(--fg);padding-bottom:4px}
+.seats-grid{display:grid;gap:10px}
+.seats-pods{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.seats-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.pod{border:2px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.pod h3{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pod .in{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seat{border:2px solid var(--line);background:var(--card);color:var(--fg);border-radius:12px;min-height:96px;padding:4px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-width:0}
+.seats-list .seat{min-height:84px}
+.seat .id{font:600 13px var(--mono);color:var(--muted)}
+.seat .name{font:700 15px var(--sans);max-width:96%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seats-list .seat .name{font-size:17px}
+.seat .mark{font:800 34px var(--sans);line-height:1}
+.seat .word{font:600 12px var(--sans);text-transform:uppercase;letter-spacing:.06em}
+.seat[data-s="got"]{border-color:var(--got);border-width:4px}
+.seat[data-s="got"] .mark,.seat[data-s="got"] .word{color:var(--got)}
+.seat[data-s="part"]{border-color:var(--part);border-width:4px;border-style:dashed}
+.seat[data-s="part"] .mark,.seat[data-s="part"] .word{color:var(--part)}
+.seat[data-s="not"]{border-color:var(--not);border-width:4px;border-style:dotted}
+.seat[data-s="not"] .mark,.seat[data-s="not"] .word{color:var(--not)}
+.seat[data-off="1"]{opacity:.35}
+.seat[data-ov="1"] .name{font-style:italic;text-decoration:underline dotted}
+.seat[data-empty="1"] .name{color:var(--muted);font-weight:500}
+.editing .seat{border-style:dashed}
+.editing .seat.sel{border:4px solid var(--accent)}
+@media (max-width:520px){.seat .mark{font-size:24px}.seat .word{display:none}}

@@ -1,0 +1,1 @@
+{"name":"Classroom Setup","short_name":"Setup","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#0f151b","theme_color":"#2a5f9e","icons":[{"src":"../lap/icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"../lap/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}
