@@ -1,0 +1,263 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#2a5f9e"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
+<title>Math Lap Tracker</title>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}
+/* Layout: portrait 800px — question bar, 5×5 seat grid facing the board, tally strip, lap history */
+:root{
+  --bg:#eef1f4; --card:#ffffff; --fg:#121a22; --muted:#55626e; --line:#c9d1d9; --accent:#2a5f9e;
+  --got:#1e7a46; --part:#b07a12; --not:#b3322e;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Roboto Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --card:#19212a; --fg:#e9eef3; --muted:#9aa7b3; --line:#2d3946; --accent:#79aee6;
+  --got:#4cc382; --part:#e2b04a; --not:#ef7a72; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --card:#19212a; --fg:#e9eef3; --muted:#9aa7b3; --line:#2d3946; --accent:#79aee6;
+  --got:#4cc382; --part:#e2b04a; --not:#ef7a72; color-scheme:dark}
+html,body{background:var(--bg)}
+body{color:var(--fg);font-family:var(--sans);font-size:17px;line-height:1.4}
+main{max-width:800px;margin:0 auto;padding-block:14px 32px;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:14px}
+.bar{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.lapno{font:700 20px var(--sans);display:flex;align-items:center;padding:0 4px;white-space:nowrap}
+#q{flex:1;min-width:0;font:500 18px var(--sans);padding:12px 14px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg)}
+#q:focus{outline:none;border-color:var(--accent)}
+button{font:600 16px var(--sans);border-radius:10px;cursor:pointer;min-height:56px;padding:0 18px}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);color:var(--bg);border:0}
+.ghost{background:var(--card);color:var(--fg);border:2px solid var(--line)}
+.board{text-align:center;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-bottom:3px solid var(--fg);padding-bottom:4px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.seat{aspect-ratio:1/0.82;max-width:100%;border:2px solid var(--line);background:var(--card);color:var(--fg);
+  border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0;min-height:0}
+.seat .id{font:600 14px var(--mono);color:var(--muted)}
+.seat .mark{font:800 40px var(--sans);line-height:1}
+.seat .word{font:600 13px var(--sans);text-transform:uppercase;letter-spacing:.06em}
+.seat[data-s="got"]{border-color:var(--got);border-width:4px}
+.seat[data-s="got"] .mark,.seat[data-s="got"] .word{color:var(--got)}
+.seat[data-s="part"]{border-color:var(--part);border-width:4px;border-style:dashed}
+.seat[data-s="part"] .mark,.seat[data-s="part"] .word{color:var(--part)}
+.seat[data-s="not"]{border-color:var(--not);border-width:4px;border-style:dotted}
+.seat[data-s="not"] .mark,.seat[data-s="not"] .word{color:var(--not)}
+.seat[data-off="1"]{opacity:.35}
+.seat .name{font:700 15px var(--sans);max-width:92%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seat[data-ov="1"] .name{font-style:italic;text-decoration:underline dotted}
+.editing .seat{border-style:dashed}
+.editing .seat.sel{border:4px solid var(--accent)}
+.editor{display:flex;flex-direction:column;gap:10px;background:var(--card);border:2px solid var(--accent);border-radius:10px;padding:12px}
+.editor .bar input{flex:1;min-width:0;font:500 18px var(--sans);padding:12px 14px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+.tally{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.t{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;justify-content:space-between;align-items:baseline}
+.t b{font:700 24px var(--mono);font-variant-numeric:tabular-nums}
+.t span{font-size:14px;color:var(--muted)}
+.hint{font-size:14px;color:var(--muted);margin:0}
+h2{font-size:18px;margin:6px 0 0}
+.hist{display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.row .n{font:700 15px var(--mono)}
+.row .qq{min-width:0;overflow-wrap:anywhere}
+.row .c{font:600 15px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.c .g{color:var(--got)}.c .p{color:var(--part)}.c .x{color:var(--not)}
+.status{font-size:14px;color:var(--muted)}
+.status.dirty{color:var(--not);font-weight:600}
+.confirm{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--card);border:2px solid var(--not);border-radius:10px;padding:10px}
+textarea{width:100%;box-sizing:border-box;font:13px var(--mono);background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px}
+@media (max-width:520px){.seat .mark{font-size:28px}.seat .word{display:none}.tally{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:no-preference){.seat{transition:border-color .12s}}
+</style>
+</head><body>
+
+<main>
+  <div class="bar">
+    <div class="lapno" id="lapno">Lap 1</div>
+    <input id="q" type="text" placeholder="Question for this lap, e.g. 3/4 ÷ 1/2 = ?" autocomplete="off" aria-label="Lap question">
+    <button class="primary" id="newlap">New lap</button>
+  </div>
+
+  <div class="board">Front · Board</div>
+  <div class="grid" id="grid" aria-label="Seats, 5 rows of 5"></div>
+  <p class="hint" id="hint">Tap a seat to cycle: ✓ got it → ~ partial → ✗ not yet → blank. Long-press marks a seat empty (absent) for the whole class.</p>
+  <div class="bar"><button class="ghost" id="editseats">Edit seating</button></div>
+  <div class="editor" id="editor" hidden>
+    <div id="edlabel" style="font-weight:700">Tap a seat to name it</div>
+    <div class="bar">
+      <input id="edname" type="text" autocomplete="off" placeholder="Initials or name" aria-label="Student at this seat" disabled>
+    </div>
+    <div class="bar">
+      <button class="primary" id="edsave" disabled>Save to seating chart</button>
+      <button class="ghost" id="edtoday" disabled>Today only</button>
+      <button class="ghost" id="edclear" disabled>Clear today's change</button>
+    </div>
+    <p class="hint">Seating chart stays until you change it. "Today only" swaps a seat for this class and goes away when you tap Start new class. Underlined italic names are today-only.</p>
+  </div>
+
+  <div class="tally" id="tally"></div>
+
+  <h2>Laps this class</h2>
+  <div class="hist" id="hist"></div>
+
+  <div class="bar">
+    <button class="ghost" id="copy">Copy CSV</button>
+    <button class="ghost" id="reset">Start new class</button>
+    <span class="status" id="status"></span>
+  </div>
+  <div class="confirm" id="confirm" hidden>
+    <span>Clear all laps for this class? Copy the CSV first if you need it.</span>
+    <button class="primary" id="yes" style="background:var(--not)">Clear</button>
+    <button class="ghost" id="no">Keep</button>
+  </div>
+  <textarea id="csv" rows="5" readonly hidden aria-label="CSV text"></textarea>
+</main>
+
+<script>
+const ROWS=5, COLS=5, KEY='lapTracker.v1';
+const CYCLE=['', 'got', 'part', 'not'];
+const LOOK={got:['✓','Got it'],part:['~','Partial'],not:['✗','Not yet'],'':['','']};
+const seatId=(r,c)=>String.fromCharCode(65+r)+(c+1);  // row A = front
+
+const CHART_KEY='lapTracker.chart.v1';
+let chart={}; try{chart=JSON.parse(localStorage.getItem(CHART_KEY))||{}}catch(e){}
+function saveChart(){try{localStorage.setItem(CHART_KEY,JSON.stringify(chart))}catch(e){}}
+let editing=false, selId=null;
+function nameOf(id){return (st.over&&st.over[id]!==undefined)?st.over[id]:(chart[id]||'')}
+let st=load(); st.over=st.over||{};
+function blankLap(){return {q:'',t:Date.now(),marks:{}}}
+function load(){
+  try{const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.laps&&s.laps.length) return s;}catch(e){}
+  return {laps:[blankLap()],off:{},dirty:false};
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}}
+const cur=()=>st.laps[st.laps.length-1];
+
+const grid=document.getElementById('grid');
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+  const b=document.createElement('button');
+  b.className='seat'; b.id='seat-'+seatId(r,c); b.dataset.id=seatId(r,c);
+  b.innerHTML='<span class="id"></span><span class="name"></span><span class="mark"></span><span class="word"></span>';
+  grid.appendChild(b);
+}
+let pressT=null, longFired=false;
+grid.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('.seat'); if(!b||editing) return;
+  longFired=false;
+  pressT=setTimeout(()=>{longFired=true; const id=b.dataset.id;
+    st.off[id]=!st.off[id]; if(st.off[id]) delete cur().marks[id]; st.dirty=true; save(); render();},600);
+});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>grid.addEventListener(ev,()=>clearTimeout(pressT)));
+grid.addEventListener('click',e=>{
+  const b=e.target.closest('.seat'); if(!b||longFired) return;
+  const id=b.dataset.id;
+  if(editing){selId=id; renderEditor(); render(); const n=document.getElementById('edname'); n.focus(); n.select(); return;}
+  if(st.off[id]) return;
+  const m=cur().marks; const next=CYCLE[(CYCLE.indexOf(m[id]||'')+1)%CYCLE.length];
+  if(next) m[id]=next; else delete m[id];
+  st.dirty=true; save(); render();
+});
+grid.addEventListener('contextmenu',e=>e.preventDefault());
+
+const q=document.getElementById('q');
+q.addEventListener('input',()=>{cur().q=q.value; st.dirty=true; save(); renderHist();});
+
+document.getElementById('newlap').addEventListener('click',()=>{
+  st.laps.push(blankLap()); st.dirty=true; save(); q.value=''; render(); q.focus();
+});
+
+function counts(l){const o={got:0,part:0,not:0};Object.values(l.marks).forEach(v=>o[v]++);return o}
+function present(){return ROWS*COLS-Object.values(st.off).filter(Boolean).length}
+
+function render(){
+  const l=cur();
+  document.getElementById('lapno').textContent='Lap '+st.laps.length;
+  if(document.activeElement!==q) q.value=l.q;
+  grid.querySelectorAll('.seat').forEach(b=>{
+    const id=b.dataset.id, s=l.marks[id]||'', off=!!st.off[id];
+    b.dataset.s=s; b.dataset.off=off?1:0;
+    b.dataset.ov=(st.over[id]!==undefined)?1:0;
+    b.classList.toggle('sel',editing&&id===selId);
+    b.querySelector('.id').textContent=id;
+    b.querySelector('.name').textContent=nameOf(id);
+    b.querySelector('.mark').textContent=off?'—':LOOK[s][0];
+    b.querySelector('.word').textContent=off?'Empty':LOOK[s][1];
+    b.setAttribute('aria-label',id+(nameOf(id)?' '+nameOf(id):'')+': '+(off?'empty':(LOOK[s][1]||'not checked')));
+  });
+  const c=counts(l), p=present(), unchecked=p-c.got-c.part-c.not;
+  document.getElementById('tally').innerHTML=
+    `<div class="t"><span>✓ Got it</span><b style="color:var(--got)">${c.got}</b></div>`+
+    `<div class="t"><span>~ Partial</span><b style="color:var(--part)">${c.part}</b></div>`+
+    `<div class="t"><span>✗ Not yet</span><b style="color:var(--not)">${c.not}</b></div>`+
+    `<div class="t"><span>Unchecked</span><b>${unchecked}</b></div>`;
+  renderHist();
+  const s=document.getElementById('status');
+  s.textContent=st.dirty?'Not copied since last change':'CSV copied';
+  s.className='status'+(st.dirty?' dirty':'');
+}
+function esc(t){return t.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}
+function renderHist(){
+  document.getElementById('hist').innerHTML=st.laps.map((l,i)=>{const c=counts(l);
+    return `<div class="row"><span class="n">${i+1}</span><span class="qq">${l.q?esc(l.q):'<span style="color:var(--muted)">No question typed</span>'}</span>`+
+      `<span class="c"><span class="g">✓${c.got}</span> <span class="p">~${c.part}</span> <span class="x">✗${c.not}</span></span></div>`}).reverse().join('');
+}
+
+function toCSV(){
+  const day=new Date().toISOString().slice(0,10);
+  const lines=['date,lap,question,seat,student,status'];
+  const cell=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  st.laps.forEach((l,i)=>{
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const id=seatId(r,c);
+      const v=st.off[id]?'empty':({got:'got it',part:'partial',not:'not yet'}[l.marks[id]]||'unchecked');
+      lines.push([day,i+1,cell(l.q),id,cell(nameOf(id)),v].join(','));}
+  });
+  return lines.join('\n');
+}
+document.getElementById('copy').addEventListener('click',()=>{
+  const t=document.getElementById('csv'); t.value=toCSV();
+  const ok=()=>{st.dirty=false;save();render();t.hidden=true;};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t.value).then(ok).catch(()=>{t.hidden=false;t.select();});
+  } else {t.hidden=false;t.select();}
+});
+const conf=document.getElementById('confirm');
+document.getElementById('reset').addEventListener('click',()=>{conf.hidden=false});
+document.getElementById('no').addEventListener('click',()=>{conf.hidden=true});
+document.getElementById('yes').addEventListener('click',()=>{
+  st={laps:[blankLap()],off:{},over:{},dirty:false}; save(); conf.hidden=true; render();
+});
+
+const edName=document.getElementById('edname');
+function renderEditor(){
+  const has=!!selId;
+  document.getElementById('edlabel').textContent=has?('Seat '+selId+(st.over[selId]!==undefined?' (changed for today)':'')):'Tap a seat to name it';
+  ['edname','edsave','edtoday'].forEach(i=>document.getElementById(i).disabled=!has);
+  document.getElementById('edclear').disabled=!(has&&st.over[selId]!==undefined);
+  edName.value=has?nameOf(selId):'';
+}
+document.getElementById('editseats').addEventListener('click',()=>{
+  editing=!editing; selId=null;
+  document.getElementById('editor').hidden=!editing;
+  grid.classList.toggle('editing',editing);
+  document.getElementById('editseats').textContent=editing?'Done editing':'Edit seating';
+  renderEditor(); render();
+});
+document.getElementById('edsave').addEventListener('click',()=>{
+  if(!selId)return; const v=edName.value.trim();
+  if(v) chart[selId]=v; else delete chart[selId];
+  delete st.over[selId]; saveChart(); save(); renderEditor(); render();
+});
+document.getElementById('edtoday').addEventListener('click',()=>{
+  if(!selId)return; st.over[selId]=edName.value.trim(); st.dirty=true; save(); renderEditor(); render();
+});
+document.getElementById('edclear').addEventListener('click',()=>{
+  if(!selId)return; delete st.over[selId]; save(); renderEditor(); render();
+});
+edName.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('edsave').click()});
+
+// keep the screen awake while the tracker is open
+async function wake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',wake); wake();
+
+render();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body></html>
