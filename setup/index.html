@@ -33,7 +33,7 @@ textarea#names{width:100%;min-height:260px;font:16px var(--sans);line-height:1.6
       <select id="defroom" class="grow" aria-label="Usual room"></select>
     </div>
     <textarea id="names" placeholder="One student per line, e.g.&#10;Jayden R&#10;Amira S" aria-label="Students, one per line"></textarea>
-    <div class="bar"><button class="primary" id="saveroster">Save roster</button><span id="rcount" class="hint"></span><span id="rsaved" class="saved"></span></div>
+    <div class="bar"><button class="primary" id="saveroster">Save roster</button><button class="ghost" id="sortfirst">Sort A–Z by first name</button><button class="ghost" id="sortlast">by last name</button><span id="rcount" class="hint"></span><span id="rsaved" class="saved"></span></div>
   </section>
 
   <section class="panel">
@@ -56,6 +56,10 @@ textarea#names{width:100%;min-height:260px;font:16px var(--sans);line-height:1.6
       <div class="panel" style="margin-top:10px">
         <div id="selabel" style="font-weight:700">Tap a seat, then pick a student</div>
         <select id="pick" disabled aria-label="Student for this seat"></select>
+        <div class="bar">
+          <button class="ghost" id="move" disabled>Move or swap…</button>
+          <button class="ghost" id="unseat" disabled>Remove from seat</button>
+        </div>
         <div><span class="hint">Not seated yet:</span> <div class="unseated" id="unseated"></div></div>
         <div class="bar"><button class="ghost" id="clearchart">Clear this chart</button></div>
         <div class="bar" id="clearconfirm" hidden><span>Remove everyone from this chart?</span><button class="danger" id="cyes">Clear</button><button class="ghost" id="cno">Keep</button></div>
@@ -88,6 +92,14 @@ $('saveroster').addEventListener('click',()=>{
   D.classes[cls].students=$('names').value.split('\n').map(s=>s.trim()).filter(s=>s&&!seen.has(s.toLowerCase())&&seen.add(s.toLowerCase()));
   Classroom.save(D); showRoster(); buildChart(); flash('rsaved','Saved');
 });
+function sortRoster(byLast){
+  const last=n=>{const w=n.trim().split(/\s+/);return (w.length>1?w[w.length-1]+' '+w.slice(0,-1).join(' '):n)};
+  const names=$('names').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  names.sort((a,b)=>(byLast?last(a):a).localeCompare(byLast?last(b):b,undefined,{sensitivity:'base'}));
+  $('names').value=names.join('\n'); $('saveroster').click();
+}
+$('sortfirst').addEventListener('click',()=>sortRoster(false));
+$('sortlast').addEventListener('click',()=>sortRoster(true));
 
 // rooms
 function showRooms(){
@@ -120,7 +132,7 @@ function fillSeatPickers(){
   $('sroom').innerHTML=opts(D.rooms,r=>r.name); $('sroom').value=sroom;
 }
 function buildChart(){
-  D=Classroom.load(); sel=null;
+  D=Classroom.load(); sel=null; moving=null;
   const isList=D.rooms[sroom].type==='list';
   $('listnote').hidden=!isList; $('chartwrap').hidden=isList;
   if(isList) return;
@@ -135,20 +147,35 @@ function paint(){
   const seated=new Set(Object.values(ch));
   const left=roster.filter(n=>!seated.has(n));
   $('unseated').innerHTML=left.length?left.map(n=>`<span class="chip">${esc(n)}</span>`).join(''):'<span class="hint">Everyone is seated.</span>';
-  const s=sel&&cells.find(c=>c.seat.id===sel);
-  $('selabel').textContent=s?'Seat '+s.seat.label:'Tap a seat, then pick a student';
-  $('pick').disabled=!s;
-  $('pick').innerHTML='<option value="">— Empty —</option>'+roster.map(n=>`<option value="${esc(n)}">${esc(n)}${seated.has(n)&&ch[sel]!==n?' (seated elsewhere)':''}</option>`).join('');
-  $('pick').value=s?(ch[sel]||''):'';
+  const s=sel&&cells.find(c=>c.seat.id===sel), who=s?ch[sel]:'';
+  cells.forEach(({el})=>el.classList.toggle('target',!!moving));
+  $('selabel').textContent=moving?('Tap the seat to move '+ch[moving]+' to. An occupied seat swaps.')
+    :s?('Seat '+s.seat.label+(who?': '+who:' (empty)')):'Tap a seat, then pick a student';
+  $('pick').disabled=!s||!!moving;
+  // only students without a seat are offered, plus whoever is in this seat now
+  $('pick').innerHTML=(who?`<option value="${esc(who)}">${esc(who)}</option>`:'<option value="">— Pick a student —</option>')
+    +left.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('pick').value=who||'';
+  $('move').disabled=!who; $('move').textContent=moving?'Cancel move':'Move or swap…';
+  if(moving) $('move').disabled=false;
+  $('unseat').disabled=!who||!!moving;
 }
-$('seats').addEventListener('click',e=>{const b=e.target.closest('.seat');if(!b)return;sel=b.dataset.id;paint();$('pick').focus();});
+let moving=null;
+$('seats').addEventListener('click',e=>{const b=e.target.closest('.seat');if(!b)return;
+  if(moving){
+    D=Classroom.load(); const ch=chart(), to=b.dataset.id;
+    if(to!==moving){const a=ch[moving], other=ch[to]; ch[to]=a; if(other) ch[moving]=other; else delete ch[moving]; Classroom.save(D);}
+    sel=to; moving=null; paint(); return;
+  }
+  sel=b.dataset.id;paint();if(!chart()[sel])$('pick').focus();});
 $('pick').addEventListener('change',e=>{
-  if(!sel)return; D=Classroom.load(); const ch=chart(), v=e.target.value;
-  if(v){Object.keys(ch).forEach(k=>{if(ch[k]===v)delete ch[k]}); ch[sel]=v;} else delete ch[sel];
-  Classroom.save(D);
-  // move to the next empty seat to speed up entry
+  if(!sel)return; D=Classroom.load(); const ch=chart(), v=e.target.value; if(!v)return;
+  ch[sel]=v; Classroom.save(D);
+  // jump to the next empty seat to speed up entry
   const next=cells.find(c=>!ch[c.seat.id]); sel=next?next.seat.id:sel; paint();
 });
+$('move').addEventListener('click',()=>{moving=moving?null:sel; paint();});
+$('unseat').addEventListener('click',()=>{if(!sel)return; D=Classroom.load(); delete chart()[sel]; Classroom.save(D); paint();});
 $('scls').addEventListener('change',e=>{scls=e.target.value;sroom=Classroom.roomFor(D,scls);$('sroom').value=sroom;buildChart();});
 $('sroom').addEventListener('change',e=>{sroom=e.target.value;buildChart();});
 $('clearchart').addEventListener('click',()=>$('clearconfirm').hidden=false);

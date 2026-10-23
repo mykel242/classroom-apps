@@ -24,6 +24,21 @@
 .status.dirty{color:var(--not);font-weight:600}
 .confirm{border:2px solid var(--not)}
 #csv{width:100%;font:13px var(--mono)}
+.row{cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
+.row.on{border:2px solid var(--accent)}
+.viewing{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--card);border:2px solid var(--accent);border-radius:10px;padding:8px 12px;font-weight:600}
+#printout{display:none}
+@media print{
+  :root{--bg:#fff;--fg:#000;--card:#fff;--line:#999;--muted:#444}
+  main>*{display:none!important}
+  #printout{display:block!important;font:12px var(--sans);color:#000}
+  #printout h1{font-size:16px;margin:0 0 6px}
+  #printout table{border-collapse:collapse;width:100%}
+  #printout th,#printout td{border:1px solid #999;padding:3px 5px;text-align:center;vertical-align:top}
+  #printout td.l,#printout th.l{text-align:left}
+  #printout th small{display:block;font-weight:400;max-width:110px;margin:0 auto}
+  #printout tfoot td{font-weight:700}
+}
 @media (max-width:520px){.tally{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -41,6 +56,10 @@
     <button class="primary" id="newlap">New lap</button>
   </div>
 
+  <div class="viewing" id="viewing" hidden>
+    <span class="grow">Viewing an earlier lap. Taps here correct that lap.</span>
+    <button class="primary" id="backcur">Back to current lap</button>
+  </div>
   <div class="board" id="board">Front · Board</div>
   <div id="seats" aria-label="Seats"></div>
   <p class="hint">Tap a seat to cycle: ✓ got it → ~ partial → ✗ not yet → blank. Long-press marks a student absent for this class.</p>
@@ -64,6 +83,7 @@
   <div class="hist" id="hist"></div>
 
   <div class="bar">
+    <button class="ghost" id="print">Print laps</button>
     <button class="ghost" id="copy">Copy CSV</button>
     <button class="ghost" id="reset">Start new class</button>
     <span class="status" id="status"></span>
@@ -73,6 +93,7 @@
     <div class="bar"><button class="danger" id="yes">Clear</button><button class="ghost" id="no">Keep</button></div>
   </div>
   <textarea id="csv" rows="5" readonly hidden aria-label="CSV text"></textarea>
+  <div id="printout"></div>
 </main>
 
 <script src="../shared/classroom.js"></script>
@@ -87,7 +108,7 @@ let D=Classroom.load();
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=(P.cls&&D.classes[P.cls])?P.cls:Object.keys(D.classes)[0];
 let room=Classroom.roomFor(D,cls,P);
-let st, info, cells=[], editing=false, selId=null;
+let st, info, cells=[], editing=false, selId=null, view=null;
 
 function savePrefs(){P.cls=cls;P['room:'+cls]=room;try{localStorage.setItem(PK,JSON.stringify(P))}catch(e){}}
 const blankLap=()=>({q:'',t:Date.now(),marks:{}});
@@ -100,7 +121,7 @@ function loadSt(){
   return {laps:[blankLap()],off:{},over:{},dirty:false};
 }
 function save(){try{localStorage.setItem(key(),JSON.stringify(st))}catch(e){}}
-const cur=()=>st.laps[st.laps.length-1];
+const cur=()=>st.laps[view!==null&&view<st.laps.length?view:st.laps.length-1];
 const nameOf=seat=>st.over[seat.id]!==undefined?st.over[seat.id]:seat.student;
 const isList=()=>info.layout==='list';
 
@@ -112,7 +133,7 @@ function fillPickers(){
 function build(){
   D=Classroom.load();
   info=Classroom.seats(D,room,cls);
-  st=loadSt();
+  st=loadSt(); view=null;
   cells=Classroom.render($('seats'),info);
   $('board').hidden=isList();
   $('editbar').hidden=isList();
@@ -129,7 +150,9 @@ function counts(l){const o={got:0,part:0,not:0};Object.values(l.marks).forEach(v
 
 function render(){
   const l=cur();
-  $('lapno').textContent='Lap '+st.laps.length;
+  const viewing=view!==null&&view<st.laps.length-1;
+  $('lapno').textContent=viewing?('Lap '+(view+1)+' of '+st.laps.length):'Lap '+st.laps.length;
+  $('viewing').hidden=!viewing;
   if(document.activeElement!==$('q')) $('q').value=l.q;
   cells.forEach(({seat,el})=>{
     const id=seat.id, s=l.marks[id]||'', off=!!st.off[id], nm=nameOf(seat);
@@ -149,8 +172,9 @@ function render(){
     `<div class="t"><span>✗ Not yet</span><b style="color:var(--not)">${c.not}</b></div>`+
     `<div class="t"><span>Unchecked</span><b>${unchecked}</b></div>`;
   $('hist').innerHTML=st.laps.map((l,i)=>{const c=counts(l);
-    return `<div class="row"><span class="n">${i+1}</span><span class="qq">${l.q?esc(l.q):'<span style="color:var(--muted)">No question typed</span>'}</span>`+
-      `<span class="c"><span class="g">✓${c.got}</span> <span class="p">~${c.part}</span> <span class="x">✗${c.not}</span></span></div>`}).reverse().join('');
+    const on=(view!==null?view:st.laps.length-1)===i;
+    return `<button type="button" class="row${on?' on':''}" data-i="${i}"><span class="n">${i+1}</span><span class="qq">${l.q?esc(l.q):'<span style="color:var(--muted)">No question typed</span>'}</span>`+
+      `<span class="c"><span class="g">✓${c.got}</span> <span class="p">~${c.part}</span> <span class="x">✗${c.not}</span></span></button>`}).reverse().join('');
   const s=$('status'); s.textContent=st.dirty?'Not copied since last change':'CSV copied'; s.className='status'+(st.dirty?' dirty':'');
 }
 function esc(t){return String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}
@@ -179,7 +203,35 @@ seatsEl.addEventListener('click',e=>{
 $('cls').addEventListener('change',e=>{cls=e.target.value; room=Classroom.roomFor(D,cls,P); $('room').value=room; savePrefs(); build();});
 $('room').addEventListener('change',e=>{room=e.target.value; savePrefs(); build();});
 $('q').addEventListener('input',()=>{cur().q=$('q').value; st.dirty=true; save(); render();});
-$('newlap').addEventListener('click',()=>{st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
+$('newlap').addEventListener('click',()=>{view=null; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
+
+// recall a lap
+$('hist').addEventListener('click',e=>{const r=e.target.closest('.row'); if(!r) return;
+  const i=+r.dataset.i; view=(i===st.laps.length-1)?null:i; $('q').value=cur().q; render();
+  $('seats').scrollIntoView({block:'start',behavior:'smooth'});});
+$('backcur').addEventListener('click',()=>{view=null; $('q').value=cur().q; render();});
+
+// printable summary: students down the side, laps across the top
+$('print').addEventListener('click',()=>{
+  const anyNamed=cells.some(c=>nameOf(c.seat));
+  const rows=anyNamed?cells.filter(c=>nameOf(c.seat)):cells;
+  const sym={got:'✓',part:'~',not:'✗'};
+  const day=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  let h=`<h1>${esc(D.classes[cls].name)} · ${esc(D.rooms[room].name)} · ${esc(day)}</h1><table><thead><tr><th class="l">Seat</th><th class="l">Student</th>`;
+  st.laps.forEach((l,i)=>h+=`<th>Lap ${i+1}<small>${esc(l.q||'')}</small></th>`);
+  h+='<th>✓ total</th></tr></thead><tbody>';
+  rows.forEach(({seat})=>{
+    const off=!!st.off[seat.id]; let got=0;
+    h+=`<tr><td class="l">${esc(seat.label||'')}</td><td class="l">${esc(nameOf(seat)||'')}</td>`;
+    st.laps.forEach(l=>{const m=l.marks[seat.id]; if(m==='got')got++; h+=`<td>${off?'abs':(sym[m]||'')}</td>`});
+    h+=`<td>${off?'':got}</td></tr>`;
+  });
+  h+='</tbody><tfoot><tr><td class="l" colspan="2">✓ / ~ / ✗</td>';
+  st.laps.forEach(l=>{const c=counts(l); h+=`<td>${c.got} / ${c.part} / ${c.not}</td>`});
+  h+='<td></td></tr></tfoot></table>';
+  $('printout').innerHTML=h;
+  window.print();
+});
 
 // seating edits
 const seatById=id=>(cells.find(c=>c.seat.id===id)||{}).seat;
