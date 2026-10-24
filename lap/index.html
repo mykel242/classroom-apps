@@ -14,7 +14,13 @@
   padding-block:10px;padding-left:max(14px, env(safe-area-inset-left,0px));padding-right:max(14px, env(safe-area-inset-right,0px))}
 .top{display:flex;gap:8px;align-items:center}
 .top select{min-height:44px;font-size:16px;padding:6px 10px}
-#room{flex:1;min-width:0}
+#where{flex:1;min-width:0;min-height:44px;justify-content:flex-start;background:var(--card);border:1.5px solid var(--line);color:var(--fg);font:700 17px var(--sans);padding:0 12px}
+#where span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#where em{font-style:normal;font-weight:500;color:var(--muted)}
+#where i{font-style:normal;margin-left:auto;color:var(--muted);font-size:14px}
+.sheet .cls{margin:10px 6px 2px;font:700 13px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sheet .item[aria-current="true"]{background:var(--sunk);font-weight:700}
+.sheet .item[aria-current="true"]::after{content:"✓";margin-left:auto;color:var(--accent)}
 .iconbtn{min-height:44px;min-width:44px;padding:0;font-size:22px;position:relative;background:var(--card);border:1.5px solid var(--line);color:var(--fg)}
 .iconbtn .dot{position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--not)}
 .lapbar{display:flex;gap:8px;align-items:center}
@@ -69,8 +75,7 @@
 <body>
 <div class="shell">
   <header class="top">
-    <div class="seg" id="clsSeg" role="group" aria-label="Class"></div>
-    <select id="room" aria-label="Room"></select>
+    <button type="button" id="where" aria-label="Class and room"></button>
     <select id="day" aria-label="Day"></select>
     <button class="iconbtn" id="menuBtn" aria-label="More">⋯<span class="dot" id="dirtydot" hidden></span></button>
   </header>
@@ -129,6 +134,10 @@
   </div>
 </div>
 
+<div class="scrim" id="pick" hidden>
+  <div class="sheet" role="dialog" aria-label="Class and room" id="picklist"></div>
+</div>
+
 <div id="printout"></div>
 
 <script src="../shared/classroom.js"></script>
@@ -185,9 +194,24 @@ const nameOf=seat=>st.over[seat.id]!==undefined?st.over[seat.id]:seat.student;
 const isList=()=>info.layout==='list';
 
 function fillPickers(){
-  $('clsSeg').innerHTML=Object.keys(D.classes).map(c=>`<button type="button" data-c="${esc(c)}" aria-pressed="${c===cls}">${esc(D.classes[c].name)}</button>`).join('');
-  $('room').innerHTML=Object.keys(D.rooms).map(r=>`<option value="${esc(r)}">${esc(D.rooms[r].name)}</option>`).join('');
-  $('room').value=room;
+  $('where').innerHTML=`<span>${esc(D.classes[cls].name)} <em>· ${esc(D.rooms[room].name)}</em></span><i>▾</i>`;
+}
+// rooms a class actually uses: its usual room, rooms with a seating chart, rooms with saved laps
+function roomsFor(c){
+  const out=new Set([Classroom.roomFor(D,c,P)]);
+  Object.keys(D.charts).forEach(k=>{const [cc,r]=k.split('|'); if(cc===c&&D.rooms[r]&&Object.keys(D.charts[k]).length) out.add(r);});
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i)||''; const m=k.match(/^lapTracker\.v3:([^|]*)\|([^|]*)\|/); if(m&&m[1]===c&&D.rooms[m[2]]) out.add(m[2]);}}catch(e){}
+  return [...out];
+}
+function openPicker(all){
+  let h='';
+  Object.keys(D.classes).forEach(c=>{
+    h+=`<div class="cls">${esc(D.classes[c].name)}</div>`;
+    (all?Object.keys(D.rooms):roomsFor(c)).forEach(r=>{
+      h+=`<button type="button" class="item" data-c="${esc(c)}" data-r="${esc(r)}" aria-current="${c===cls&&r===room}">${esc(D.rooms[r].name)}</button>`;});
+  });
+  if(!all) h+=`<hr><button type="button" class="item" id="pickall" style="color:var(--accent)">Other rooms…</button>`;
+  $('picklist').innerHTML=h; $('pick').hidden=false;
 }
 function build(){
   D=Classroom.load();
@@ -267,9 +291,14 @@ seatsEl.addEventListener('click',e=>{
   st.dirty=true; save(); render();
 });
 
-$('clsSeg').addEventListener('click',e=>{const b=e.target.closest('button[data-c]'); if(!b||b.dataset.c===cls) return;
-  cls=b.dataset.c; room=Classroom.roomFor(D,cls,P); pinnedDay=null; fillPickers(); savePrefs(); build();});
-$('room').addEventListener('change',e=>{room=e.target.value; pinnedDay=null; savePrefs(); build();});
+$('where').addEventListener('click',()=>openPicker(false));
+$('pick').addEventListener('click',e=>{
+  if(e.target===$('pick')){$('pick').hidden=true;return;}
+  if(e.target.closest('#pickall')){openPicker(true);return;}
+  const b=e.target.closest('button[data-c]'); if(!b) return;
+  $('pick').hidden=true;
+  if(b.dataset.c===cls&&b.dataset.r===room) return;
+  cls=b.dataset.c; room=b.dataset.r; pinnedDay=null; savePrefs(); fillPickers(); build();});
 $('day').addEventListener('change',e=>{pinnedDay=e.target.value===today()?null:e.target.value; build();});
 
 // keyboard: Done closes it, and so does a tap anywhere outside a text box
