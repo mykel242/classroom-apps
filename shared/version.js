@@ -1,1 +1,1 @@
-window.APP_VERSION={n:17,built:'2026-10-23 23:22'};
+window.APP_VERSION={n:18,built:'2026-10-24 17:31'};

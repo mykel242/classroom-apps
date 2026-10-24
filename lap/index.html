@@ -27,7 +27,13 @@
 .lapno{font:700 18px var(--sans);white-space:nowrap}
 .lapno.past{color:var(--part)}
 #q{flex:1;min-width:0;min-height:48px}
-#backcur{min-height:44px;padding:0 12px;font-size:15px}
+#backcur,#lockbtn{min-height:44px;padding:0 12px;font-size:15px}
+.lapno.editing{color:var(--not)}
+#lockbtn.on{background:var(--not);border-color:var(--not);color:var(--onaccent)}
+#q[readonly]{background:var(--sunk);color:var(--muted)}
+#seats.locked .seat{cursor:default}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(120px + env(safe-area-inset-bottom,0px));z-index:30;
+  background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font:600 15px var(--sans);box-shadow:0 4px 16px rgb(0 0 0 / .2)}
 .editbanner{display:flex;gap:10px;align-items:center;background:var(--accent);color:var(--onaccent);border-radius:12px;padding:6px 6px 6px 14px;font-weight:600}
 .editbanner button{min-height:40px;background:var(--onaccent);color:var(--accent);border:0}
 .stage{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
@@ -82,6 +88,7 @@
 
   <div class="lapbar" id="lapbar">
     <span class="lapno" id="lapno">Lap 1</span>
+    <button class="ghost" id="lockbtn" hidden>Unlock</button>
     <button class="ghost" id="backcur" hidden>↩ Current</button>
     <input id="q" type="text" enterkeyhint="done" placeholder="Question for this lap" autocomplete="off" aria-label="Lap question">
     <button class="primary" id="newlap">New lap</button>
@@ -138,6 +145,8 @@
   <div class="sheet" role="dialog" aria-label="Class and room" id="picklist"></div>
 </div>
 
+<div class="toast" id="toast" hidden></div>
+
 <div id="printout"></div>
 
 <script src="../shared/classroom.js"></script>
@@ -153,6 +162,12 @@ let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=(P.cls&&D.classes[P.cls])?P.cls:Object.keys(D.classes)[0];
 let room=Classroom.roomFor(D,cls,P);
 let st, info, cells=[], editing=false, selId=null, view=null, pinnedDay=null, day, filter=null;
+// earlier laps and past days are locked; unlocking applies only to what you're looking at now
+let unlocked=false;
+const isHistory=()=>isPast()||(view!==null&&view<st.laps.length-1);
+const locked=()=>isHistory()&&!unlocked;
+let toastT; function toast(msg){const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200);}
+function blocked(){if(!locked()) return false; toast('This lap is locked. Tap Unlock to change it.'); return true;}
 const pad=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
 const dayOf=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -218,7 +233,7 @@ function openPicker(all){
 function build(){
   D=Classroom.load();
   info=Classroom.seats(D,room,cls);
-  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; filter=null; fillDays();
+  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; filter=null; unlocked=false; fillDays();
   cells=Classroom.render($('seats'),info);
   $('board').hidden=isList();
   $('mEdit').hidden=isList();
@@ -236,10 +251,14 @@ function render(){
   const l=cur();
   const viewing=view!==null&&view<st.laps.length-1;
   const past=isPast(), lapTxt=viewing?('Lap '+(view+1)+' of '+st.laps.length):'Lap '+st.laps.length;
-  $('lapno').textContent=(past||viewing?'⚠ ':'')+(past?nice(day,{month:'short',day:'numeric'})+' · ':'')+lapTxt;
-  $('lapno').classList.toggle('past',past||viewing);
-  $('lapno').title=past?'Viewing an earlier day. Taps correct that day.':viewing?'Viewing an earlier lap. Taps correct that lap.':'';
-  $('backcur').hidden=!(past||viewing); $('backcur').textContent=past?'↩ Today':'↩ Current';
+  const hist=past||viewing, lk=hist&&!unlocked;
+  $('lapno').textContent=(hist?(lk?'🔒 ':'✎ '):'')+(past?nice(day,{month:'short',day:'numeric'})+' · ':'')+lapTxt+(hist&&!lk?' · editing':'');
+  $('lapno').classList.toggle('past',lk); $('lapno').classList.toggle('editing',hist&&!lk);
+  $('lapno').title=lk?'Earlier lap, locked so it is not changed by accident.':hist?'Changes now go into this earlier lap.':'';
+  $('lockbtn').hidden=!hist; $('lockbtn').textContent=lk?'Unlock':'Lock'; $('lockbtn').classList.toggle('on',hist&&!lk);
+  $('q').readOnly=lk; $('seats').classList.toggle('locked',lk);
+  $('mEdit').disabled=lk;
+  $('backcur').hidden=!hist; $('backcur').textContent=past?'↩ Today':'↩ Current';
   $('newlap').disabled=past;
   $('confirmtxt').textContent='Clear all laps for '+(past?nice(day):'today')+'?';
   if(document.activeElement!==$('q')) $('q').value=l.q;
@@ -276,7 +295,7 @@ function render(){
 let pressT=null, longFired=false;
 const seatsEl=$('seats');
 seatsEl.addEventListener('pointerdown',e=>{
-  const b=e.target.closest('.seat'); if(!b||editing) return; longFired=false;
+  const b=e.target.closest('.seat'); if(!b||editing||locked()) return; longFired=false;
   pressT=setTimeout(()=>{longFired=true;const id=b.dataset.id;
     st.off[id]=!st.off[id]; if(st.off[id]) delete cur().marks[id];
     st.dirty=true; save(); render();},600);
@@ -287,6 +306,7 @@ seatsEl.addEventListener('click',e=>{
   const b=e.target.closest('.seat'); if(!b||longFired) return;
   const id=b.dataset.id;
   if(editing){selId=id; renderEditor(); render(); return;}
+  if(blocked()) return;
   if(st.off[id]) return;
   const m=cur().marks; const next=CYCLE[(CYCLE.indexOf(m[id]||'')+1)%CYCLE.length];
   if(next) m[id]=next; else delete m[id];
@@ -307,16 +327,18 @@ $('day').addEventListener('change',e=>{pinnedDay=e.target.value===today()?null:e
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('q').blur();}});
 document.addEventListener('pointerdown',e=>{const a=document.activeElement;
   if(a&&a.tagName==='INPUT'&&!e.target.closest('input,select,textarea,datalist')) a.blur();},true);
-$('q').addEventListener('input',()=>{cur().q=$('q').value; st.dirty=true; save(); render();});
-$('newlap').addEventListener('click',()=>{view=null; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
+$('q').addEventListener('input',()=>{if(locked()) return; cur().q=$('q').value; st.dirty=true; save(); render();});
+$('q').addEventListener('focus',()=>{if(locked()){$('q').blur(); toast('This lap is locked. Tap Unlock to change it.');}});
+$('lockbtn').addEventListener('click',()=>{unlocked=!unlocked; render(); if(unlocked) toast('Unlocked. Changes now go into this earlier lap.');});
+$('newlap').addEventListener('click',()=>{view=null; unlocked=false; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
 
 $('tally').addEventListener('click',e=>{const b=e.target.closest('button[data-f]'); if(!b) return;
   filter=filter===b.dataset.f?null:b.dataset.f; render();});
 
 // recall a lap
 $('hist').addEventListener('click',e=>{const r=e.target.closest('.chip'); if(!r) return;
-  const i=+r.dataset.i; view=(i===st.laps.length-1)?null:i; $('q').value=cur().q; render();});
-$('backcur').addEventListener('click',()=>{if(isPast()){pinnedDay=null;build();}else{view=null;$('q').value=cur().q;render();}});
+  const i=+r.dataset.i, nv=(i===st.laps.length-1)?null:i; if(nv!==view) unlocked=false; view=nv; $('q').value=cur().q; render();});
+$('backcur').addEventListener('click',()=>{if(isPast()){pinnedDay=null;build();}else{view=null;unlocked=false;$('q').value=cur().q;render();}});
 
 // menu
 const menu=$('menu');
@@ -421,7 +443,7 @@ $('mCopy').addEventListener('click',()=>{
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(ok).catch(()=>{t.hidden=false;t.select();});
   else {t.hidden=false;t.select();}
 });
-$('mClear').addEventListener('click',()=>{$('confirm').hidden=false});
+$('mClear').addEventListener('click',()=>{if(isPast()&&!unlocked){closeMenu();toast('This day is locked. Tap Unlock first to clear it.');return;} $('confirm').hidden=false});
 $('no').addEventListener('click',()=>{$('confirm').hidden=true});
 $('yes').addEventListener('click',()=>{try{localStorage.removeItem(key())}catch(e){} closeMenu(); build();});
 
