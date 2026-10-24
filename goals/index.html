@@ -213,19 +213,31 @@ function renderStudents(){
 }
 
 function studentView(sid){
-  const gs=activeGoals().filter(g=>g.students.includes(sid));
-  $('view').innerHTML=`<div class="bar"><button class="plain" id="backS" style="padding:0">‹ Students</button></div><h2>${esc(sname(sid))}</h2>`+
+  const gs=activeGoals().filter(g=>g.students.includes(sid)), others=activeGoals().filter(g=>!g.students.includes(sid));
+  const nm=esc(sname(sid));
+  const addExisting=others.length?`<div class="card"><h3>Add ${nm} to an existing goal</h3>
+      ${others.map(g=>`<button type="button" class="rowbtn" data-join="${esc(g.id)}"><span class="grow"><b>${esc(g.title)}</b><br><span class="meta">${esc(KIND[g.kind])} · ${esc(cadName(g.cadence))} · ${g.students.length} student${g.students.length===1?'':'s'}</span></span><span class="tag">+ Add</span></button>`).join('')}</div>`:'';
+  $('view').innerHTML=`<div class="bar"><button class="plain" id="backS" style="padding:0">‹ Students</button></div>
+    <div class="bar"><h2 class="grow">${nm}</h2>${gs.length?'<button class="primary" id="newFor">+ New goal</button>':''}</div>`+
     (gs.length?gs.map(g=>{const st=status(g,sid),pc=recentPct(g,sid);
       return `<div class="card"><div class="bar"><h3 class="grow">${esc(g.title)}</h3><span class="tag ${st.cls}">${esc(st.txt)}</span></div>
         ${g.criteria?`<div class="crit">${esc(g.criteria)}</div>`:''}
         <div class="meta"><span>${esc(KIND[g.kind])}</span>·<span>${esc(cadName(g.cadence))}</span>${g.students.length>1?'·<span>Shared</span>':''}${pc?'·<span>'+esc(pc)+'</span>':''}</div>
         ${recentChips(g,sid,10)}
-        <div class="bar"><button class="primary" data-log="${esc(g.id)}">Log</button><button class="ghost" data-hist="${esc(g.id)}">History</button></div></div>`;}).join('')
-      :`<div class="empty">No goals for ${esc(sname(sid))} yet. Add them from the Goals tab.</div>`);
+        <div class="bar"><button class="primary" data-log="${esc(g.id)}">Log</button><button class="ghost" data-hist="${esc(g.id)}">History</button><span class="grow"></span><button class="plain" data-edit="${esc(g.id)}">Edit goal</button></div></div>`;}).join('')+(others.length?`<details class="card"><summary style="font-weight:700;cursor:pointer">Add ${nm} to another goal (${others.length})</summary>${addExisting.replace(/^<div class="card"><h3>[^<]*<\/h3>/,'').replace(/<\/div>$/,'')}</details>`:'')
+      :`<div class="card" style="align-items:center;text-align:center;padding:24px 14px">
+          <h3>No goals for ${nm} yet</h3>
+          <button class="primary" id="newFor2">+ New goal for ${nm}</button>
+        </div>`+addExisting);
+  const fresh=()=>studentView(sid);
   $('backS').addEventListener('click',renderStudents);
-  $('view').onclick=e=>{const l=e.target.closest('[data-log]'),h=e.target.closest('[data-hist]');
-    if(l) logSheet(G.goals[l.dataset.log],[sid],()=>studentView(sid));
-    if(h) historySheet(G.goals[h.dataset.hist],sid,()=>studentView(sid));};
+  if($('newFor')) $('newFor').addEventListener('click',()=>editGoal(null,[sid],fresh));
+  if($('newFor2')) $('newFor2').addEventListener('click',()=>editGoal(null,[sid],fresh));
+  $('view').onclick=e=>{const l=e.target.closest('[data-log]'),h=e.target.closest('[data-hist]'),j=e.target.closest('[data-join]'),ed=e.target.closest('[data-edit]');
+    if(l) logSheet(G.goals[l.dataset.log],[sid],fresh);
+    if(h) historySheet(G.goals[h.dataset.hist],sid,fresh);
+    if(ed) editGoal(G.goals[ed.dataset.edit],null,fresh);
+    if(j){G=loadG(); const g=G.goals[j.dataset.join]; if(g&&!g.students.includes(sid)){g.students.push(sid); g.updated=Date.now(); saveG(); toast('Added to '+g.title);} fresh();}};
 }
 
 function renderGoals(){
@@ -270,8 +282,8 @@ function wirePicker(el,sel){
 }
 
 // ---------- goal editor
-function editGoal(g){
-  const isNew=!g; const d=g?JSON.parse(JSON.stringify(g)):{id:uid('g'),cls,title:'',criteria:'',kind:'trials',defTotal:5,cadence:'weekly',start:today(),end:'',students:[],archived:false};
+function editGoal(g,preSids,after){
+  const isNew=!g; const d=g?JSON.parse(JSON.stringify(g)):{id:uid('g'),cls,title:'',criteria:'',kind:'trials',defTotal:5,cadence:'weekly',start:today(),end:'',students:(preSids||[]).slice(),archived:false};
   const sel=d.students.slice(); const nlogs=g?G.logs.filter(l=>l.goal===g.id).length:0;
   openSheet(`<h2>${isNew?'New goal':'Edit goal'}</h2>
     <div class="field"><label for="gTitle">Goal</label><input id="gTitle" type="text" value="${esc(d.title)}" placeholder="Short name for the goal" enterkeyhint="next"></div>
@@ -299,7 +311,7 @@ function editGoal(g){
       if(!d.title) return err('Give the goal a short name.');
       if(!d.students.length) return err('Pick at least one student.');
       if(d.end&&d.end<d.start) return err('The end date is before the start date.');
-      G=loadG(); G.goals[d.id]=d; saveG(); closeSheet(); toast(isNew?'Goal added':'Saved'); render();
+      G=loadG(); G.goals[d.id]=d; saveG(); closeSheet(); toast(isNew?'Goal added':'Saved'); (after||render)();
     });
     if(!isNew){
       el.querySelector('#gArch').addEventListener('click',()=>{G=loadG();G.goals[d.id].archived=!d.archived;G.goals[d.id].updated=Date.now();saveG();closeSheet();toast(d.archived?'Restored':'Archived');render();});
