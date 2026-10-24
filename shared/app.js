@@ -5,7 +5,7 @@
   f.className='appver';
   const when=v.built?new Date(v.built.replace(' ','T')).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
   f.innerHTML='<span>Version '+v.n+(when?' · '+when:'')+'</span><span id="netstate"></span><button type="button" class="ghost" id="updnow">Check for update</button>';
-  (document.querySelector('main')||document.body).appendChild(f);
+  (document.getElementById('appver-slot')||document.querySelector('main')||document.body).appendChild(f);
   const net=()=>{document.getElementById('netstate').textContent=navigator.onLine?'':'Offline copy'};
   addEventListener('online',net); addEventListener('offline',net); net();
   document.getElementById('updnow').addEventListener('click',async()=>{

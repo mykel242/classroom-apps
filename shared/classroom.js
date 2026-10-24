@@ -48,7 +48,8 @@
       return {layout:'pods',groups};
     }
     const c=d.classes[classId];
-    const names=(c?c.students:[]).slice().sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+    // roster order, so sorting the roster in Setup (by first or last name) sets the order here
+    const names=(c?c.students:[]).slice();
     return {layout:'list',groups:[{name:'',seats:names.map(n=>({id:'S:'+n,label:'',student:n}))}]};
   }
 

@@ -18,15 +18,24 @@ textarea#names{width:100%;min-height:260px;font:16px var(--sans);line-height:1.6
 .chip{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:14px;background:var(--bg)}
 .saved{color:var(--got);font-weight:600;font-size:14px}
 @media (max-width:620px){.roomrow{grid-template-columns:1fr}}
+.tabs{align-self:flex-start}
+.tabs button{min-height:44px;padding:0 18px}
+#chartwrap{display:flex;flex-direction:column;gap:10px}
+#seats{height:min(58vh,640px);margin-top:4px}
+.seatctl{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
 </style>
 </head>
 <body>
 <main>
-  <div class="bar"><h1 class="grow">Classroom setup</h1><a class="btn ghost" href="../lap/">Lap Tracker</a></div>
-  <p class="hint">Classes, rooms and seating charts are shared by every classroom app on this tablet. Nothing leaves the tablet.</p>
+  <div class="bar"><a class="btn plain" href="../lap/" style="padding:0 4px">‹ Lap Tracker</a></div>
+  <h1>Classroom setup</h1>
+  <div class="seg tabs" id="tabs" role="tablist">
+    <button type="button" data-t="roster" aria-pressed="true">Rosters</button>
+    <button type="button" data-t="seating" aria-pressed="false">Seating charts</button>
+    <button type="button" data-t="rooms" aria-pressed="false">Rooms</button>
+  </div>
 
-  <section class="panel">
-    <h2>Class roster</h2>
+  <section class="panel" id="tab-roster">
     <div class="bar">
       <select id="cls" aria-label="Class"></select>
       <span class="hint">Usually meets in</span>
@@ -36,24 +45,22 @@ textarea#names{width:100%;min-height:260px;font:16px var(--sans);line-height:1.6
     <div class="bar"><button class="primary" id="saveroster">Save roster</button><button class="ghost" id="sortfirst">Sort A–Z by first name</button><button class="ghost" id="sortlast">by last name</button><span id="rcount" class="hint"></span><span id="rsaved" class="saved"></span></div>
   </section>
 
-  <section class="panel">
-    <h2>Rooms</h2>
+  <section class="panel" id="tab-rooms" hidden>
     <div class="rooms" id="rooms"></div>
     <div class="bar"><button class="primary" id="saverooms">Save rooms</button><span id="msaved" class="saved"></span></div>
-    <p class="hint">Grid: rows of desks, row A at the front. Pods: groups of desks. List: no seats, students in alphabetical order.</p>
+    <p class="hint">Grid: rows of desks, row A at the front. Pods: groups of desks. List: no seats, students in roster order (sort the roster to change it).</p>
   </section>
 
-  <section class="panel">
-    <h2>Seating chart</h2>
+  <section class="panel" id="tab-seating" hidden>
     <div class="bar">
       <select id="scls" aria-label="Class for seating"></select>
       <select id="sroom" class="grow" aria-label="Room for seating"></select>
     </div>
-    <p class="hint" id="listnote" hidden>This room uses an alphabetical list, so there's no seating chart to set.</p>
+    <p class="hint" id="listnote" hidden>This room shows students as a list in roster order, so there's no seating chart to set.</p>
     <div id="chartwrap">
       <div class="board">Front · Board</div>
-      <div id="seats" class="editing" style="margin-top:10px"></div>
-      <div class="panel" style="margin-top:10px">
+      <div id="seats" class="editing"></div>
+      <div class="seatctl">
         <div id="selabel" style="font-weight:700">Tap a seat, then pick a student</div>
         <select id="pick" disabled aria-label="Student for this seat"></select>
         <div class="bar">
@@ -66,6 +73,8 @@ textarea#names{width:100%;min-height:260px;font:16px var(--sans);line-height:1.6
       </div>
     </div>
   </section>
+  <p class="hint">Rosters, rooms and seating charts are shared by every classroom app on this tablet. Nothing leaves the tablet.</p>
+  <div id="appver-slot"></div>
 </main>
 
 <script src="../shared/classroom.js"></script>
@@ -114,7 +123,7 @@ function dims(k){
   const r=D.rooms[k], t=$('rt-'+k).value, el=$('rd-'+k);
   if(t==='grid') el.innerHTML=`<input type="number" min="1" max="10" id="ra-${k}" value="${r.rows||5}" aria-label="Rows"> rows × <input type="number" min="1" max="10" id="rb-${k}" value="${r.cols||5}" aria-label="Columns"> cols`;
   else if(t==='pods') el.innerHTML=`<input type="number" min="1" max="10" id="ra-${k}" value="${r.pods||5}" aria-label="Pods"> pods × <input type="number" min="1" max="8" id="rb-${k}" value="${r.size||5}" aria-label="Desks per pod"> desks`;
-  else el.textContent='Alphabetical, no seats';
+  else el.textContent='Roster order, no seats';
 }
 $('saverooms').addEventListener('click',()=>{
   D=Classroom.load();
@@ -182,7 +191,14 @@ $('clearchart').addEventListener('click',()=>$('clearconfirm').hidden=false);
 $('cno').addEventListener('click',()=>$('clearconfirm').hidden=true);
 $('cyes').addEventListener('click',()=>{D=Classroom.load();delete D.charts[scls+'|'+sroom];Classroom.save(D);$('clearconfirm').hidden=true;buildChart();});
 
+// tabs: each task on its own screen
+function showTab(t){document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));
+  ['roster','seating','rooms'].forEach(x=>$('tab-'+x).hidden=x!==t);
+  if(t==='seating'){D=Classroom.load();fillSeatPickers();buildChart();}
+  try{sessionStorage.setItem('setupTab',t)}catch(e){}}
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-t]');if(b)showTab(b.dataset.t);});
 showRoster(); showRooms(); fillSeatPickers(); buildChart();
+let t0='roster'; try{t0=sessionStorage.getItem('setupTab')||'roster'}catch(e){} showTab(t0);
 </script>
 <script src="../shared/version.js"></script>
 <script src="../shared/app.js"></script>

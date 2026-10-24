@@ -2,37 +2,52 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#2a5f9e">
 <title>Math Lap Tracker</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="../shared/classroom.css">
 <style>
-.lapno{font:700 20px var(--sans);white-space:nowrap}
-.tally{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.t{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;justify-content:space-between;align-items:baseline}
-.t b{font:700 24px var(--mono);font-variant-numeric:tabular-nums}
-.t span{font-size:14px;color:var(--muted)}
-.hist{display:flex;flex-direction:column;gap:6px}
-.row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.row .n{font:700 15px var(--mono)}
-.row .qq{min-width:0;overflow-wrap:anywhere}
-.row .c{font:600 15px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
-.c .g{color:var(--got)}.c .p{color:var(--part)}.c .x{color:var(--not)}
-.status{font-size:14px;color:var(--muted)}
-.status.dirty{color:var(--not);font-weight:600}
-.confirm{border:2px solid var(--not)}
-#csv{width:100%;font:13px var(--mono)}
-.row{cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
-.row.on{border:2px solid var(--accent)}
+/* One screen, no page scroll: header, lap bar, seats (fill), dock */
+.shell{height:100%;max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:10px;
+  padding-block:10px;padding-left:max(14px, env(safe-area-inset-left,0px));padding-right:max(14px, env(safe-area-inset-right,0px))}
+.top{display:flex;gap:8px;align-items:center}
+.top select{min-height:44px;font-size:16px;padding:6px 10px}
+#room{flex:1;min-width:0}
+.iconbtn{min-height:44px;min-width:44px;padding:0;font-size:22px;position:relative;background:var(--card);border:1.5px solid var(--line);color:var(--fg)}
+.iconbtn .dot{position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--not)}
+.lapbar{display:flex;gap:8px;align-items:center}
+.lapno{font:700 18px var(--sans);white-space:nowrap}
 .lapno.past{color:var(--part)}
+#q{flex:1;min-width:0;min-height:48px}
 #backcur{min-height:44px;padding:0 12px;font-size:15px}
-.tag{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+.editbanner{display:flex;gap:10px;align-items:center;background:var(--accent);color:var(--onaccent);border-radius:12px;padding:6px 6px 6px 14px;font-weight:600}
+.editbanner button{min-height:40px;background:var(--onaccent);color:var(--accent);border:0}
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+#seats{flex:1;min-height:0}
+.dock{display:flex;flex-direction:column;gap:8px}
+.tally{display:flex;gap:6px;font:600 15px var(--sans);font-variant-numeric:tabular-nums}
+.tally span{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 10px;display:flex;justify-content:space-between;align-items:baseline}
+.tally b{font:700 20px var(--mono)}
+.tally .g b{color:var(--got)}.tally .p b{color:var(--part)}.tally .x b{color:var(--not)}
+.tally em{font-style:normal;color:var(--muted);font-weight:500;font-size:13px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;max-width:180px;min-height:52px;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;
+  padding:4px 12px;background:var(--card);border:1.5px solid var(--line);color:var(--fg);font-weight:500;text-align:left}
+.chip .t1{font:700 13px var(--sans);display:flex;gap:6px;align-items:center;width:100%}
+.chip .t1 i{font-style:normal;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.chip .t2{font-size:13px;color:var(--muted);max-width:156px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.on{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-3px}
+.editor{display:flex;flex-direction:column;gap:8px}
+.editor .bar button{flex:1}
+#csv{width:100%;font:13px var(--mono)}
 #printout{display:none}
 @media print{
   :root{--bg:#fff;--fg:#000;--card:#fff;--line:#999;--muted:#444}
-  main>*{display:none!important}
+  html,body{height:auto}
+  body>*{display:none!important}
   #printout{display:block!important;font:12px var(--sans);color:#000}
   #printout h1{font-size:16px;margin:0 0 6px}
   #printout table{border-collapse:collapse;width:100%}
@@ -41,59 +56,68 @@
   #printout th small{display:block;font-weight:400;max-width:110px;margin:0 auto}
   #printout tfoot td{font-weight:700}
 }
-@media (max-width:520px){.tally{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
-<main>
-  <div class="bar">
-    <select id="cls" aria-label="Class"></select>
-    <select id="room" aria-label="Room" class="grow"></select>
-    <a class="btn ghost" href="../setup/">Setup</a>
-  </div>
+<div class="shell">
+  <header class="top">
+    <div class="seg" id="clsSeg" role="group" aria-label="Class"></div>
+    <select id="room" aria-label="Room"></select>
+    <select id="day" aria-label="Day"></select>
+    <button class="iconbtn" id="menuBtn" aria-label="More">⋯<span class="dot" id="dirtydot" hidden></span></button>
+  </header>
 
-  <div class="bar">
+  <div class="lapbar" id="lapbar">
     <span class="lapno" id="lapno">Lap 1</span>
-    <button class="ghost" id="backcur" hidden title="Back to the current lap">↩ Current</button>
-    <input id="q" class="grow" type="text" enterkeyhint="done" placeholder="Question for this lap, e.g. 3/4 ÷ 1/2 = ?" autocomplete="off" aria-label="Lap question">
+    <button class="ghost" id="backcur" hidden>↩ Current</button>
+    <input id="q" type="text" enterkeyhint="done" placeholder="Question for this lap" autocomplete="off" aria-label="Lap question">
     <button class="primary" id="newlap">New lap</button>
   </div>
+  <div class="editbanner" id="editbanner" hidden><span class="grow">Editing seating · tap a seat</span><button id="editdone">Done</button></div>
 
-  <div class="board" id="board">Front · Board</div>
-  <div id="seats" aria-label="Seats"></div>
-  <p class="hint">Tap a seat to cycle: ✓ got it → ~ partial → ✗ not yet → blank. Long-press marks a student absent for this class.</p>
+  <div class="stage">
+    <div class="board" id="board">Front · Board</div>
+    <div id="seats" aria-label="Seats"></div>
+  </div>
 
-  <div class="bar" id="editbar"><button class="ghost" id="editseats">Edit seating</button></div>
-  <div class="panel" id="editor" hidden>
-    <div id="edlabel" style="font-weight:700">Tap a seat to change who sits there</div>
-    <input id="edname" type="text" list="roster" autocomplete="off" placeholder="Student" aria-label="Student at this seat" disabled>
-    <datalist id="roster"></datalist>
-    <div class="bar">
-      <button class="primary" id="edsave" disabled>Save to seating chart</button>
-      <button class="ghost" id="edtoday" disabled>Today only</button>
-      <button class="ghost" id="edclear" disabled>Undo today's change</button>
+  <div class="dock">
+    <div id="lapdock">
+      <div class="tally" id="tally"></div>
+      <div class="chips" id="hist" aria-label="Laps" style="margin-top:8px"></div>
     </div>
-    <p class="hint">"Today only" lasts for today's class. Underlined italic names are today-only.</p>
+    <div class="editor" id="editor" hidden>
+      <div id="edlabel" style="font-weight:700">Tap a seat to change who sits there</div>
+      <input id="edname" type="text" list="roster" autocomplete="off" enterkeyhint="done" placeholder="Student" aria-label="Student at this seat" disabled>
+      <datalist id="roster"></datalist>
+      <div class="bar">
+        <button class="primary" id="edsave" disabled>Save to chart</button>
+        <button class="ghost" id="edtoday" disabled>Today only</button>
+        <button class="ghost" id="edclear" disabled>Undo today</button>
+      </div>
+    </div>
   </div>
+</div>
 
-  <div class="tally" id="tally"></div>
-
-  <div class="bar"><h2 class="grow" style="margin:0">Laps</h2><select id="day" aria-label="Day"></select></div>
-  <div class="hist" id="hist"></div>
-
-  <div class="bar">
-    <button class="ghost" id="print">Print laps</button>
-    <button class="ghost" id="copy">Copy CSV</button>
-    <button class="ghost" id="reset">Clear laps</button>
-    <span class="status" id="status"></span>
+<div class="scrim" id="menu" hidden>
+  <div class="sheet" role="dialog" aria-label="More">
+    <button class="item" id="mEdit">Edit seating</button>
+    <button class="item" id="mPrint">Print laps</button>
+    <button class="item" id="mCopy">Copy CSV <small id="status"></small></button>
+    <textarea id="csv" rows="4" readonly hidden aria-label="CSV text"></textarea>
+    <button class="item" id="mClear" style="color:var(--not)">Clear laps…</button>
+    <div id="confirm" class="bar" hidden style="padding:4px 6px">
+      <span class="grow" id="confirmtxt"></span>
+      <button class="danger" id="yes">Clear</button><button class="ghost" id="no">Keep</button>
+    </div>
+    <hr>
+    <a class="item btn" href="../setup/">Classroom setup</a>
+    <p class="hint" style="padding:0 6px">Tap a seat to cycle ✓ got it → ~ partial → ✗ not yet. Long-press marks absent.</p>
+    <hr>
+    <div id="appver-slot" style="padding:0 6px"></div>
   </div>
-  <div class="panel confirm" id="confirm" hidden>
-    <span id="confirmtxt">Clear all laps for this day? Copy the CSV first if you need it.</span>
-    <div class="bar"><button class="danger" id="yes">Clear</button><button class="ghost" id="no">Keep</button></div>
-  </div>
-  <textarea id="csv" rows="5" readonly hidden aria-label="CSV text"></textarea>
-  <div id="printout"></div>
-</main>
+</div>
+
+<div id="printout"></div>
 
 <script src="../shared/classroom.js"></script>
 <script>
@@ -113,6 +137,7 @@ const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+
 const dayOf=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
 const isPast=()=>day!==today();
 const nice=(d,o)=>new Date(d+'T12:00:00').toLocaleDateString(undefined,o||{weekday:'short',month:'short',day:'numeric'});
+function esc(t){return String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}
 
 function savePrefs(){P.cls=cls;P['room:'+cls]=room;try{localStorage.setItem(PK,JSON.stringify(P))}catch(e){}}
 const blankLap=()=>({q:'',t:Date.now(),marks:{}});
@@ -120,7 +145,6 @@ const blankLap=()=>({q:'',t:Date.now(),marks:{}});
 const prefix=()=>'lapTracker.v3:'+cls+'|'+room+'|';
 const key=()=>prefix()+day;
 function migrate(){
-  // file laps from earlier versions under the day they were taken
   const olds=['lapTracker.v2:'+cls+'|'+room]; if(cls==='601'&&room==='math') olds.push('lapTracker.v1');
   olds.forEach(k=>{try{const s=JSON.parse(localStorage.getItem(k));
     if(s&&s.laps&&s.laps.length){const k3=prefix()+dayOf(s.laps[0].t||Date.now());
@@ -140,7 +164,7 @@ function days(){
 function fillDays(){
   $('day').innerHTML=days().map(d=>{let n=0;
     try{const s=JSON.parse(localStorage.getItem(prefix()+d));n=s?s.laps.filter(used).length:0}catch(e){}
-    return `<option value="${d}">${d===today()?'Today':nice(d)} · ${n} lap${n===1?'':'s'}</option>`}).join('');
+    return `<option value="${d}">${d===today()?'Today':nice(d,{month:'short',day:'numeric'})}${n?' · '+n:''}</option>`}).join('');
   $('day').value=day;
 }
 function save(){try{localStorage.setItem(key(),JSON.stringify(st))}catch(e){} fillDays();}
@@ -149,9 +173,9 @@ const nameOf=seat=>st.over[seat.id]!==undefined?st.over[seat.id]:seat.student;
 const isList=()=>info.layout==='list';
 
 function fillPickers(){
-  $('cls').innerHTML=Object.keys(D.classes).map(c=>`<option value="${c}">${esc(D.classes[c].name)}</option>`).join('');
-  $('room').innerHTML=Object.keys(D.rooms).map(r=>`<option value="${r}">${esc(D.rooms[r].name)}</option>`).join('');
-  $('cls').value=cls; $('room').value=room;
+  $('clsSeg').innerHTML=Object.keys(D.classes).map(c=>`<button type="button" data-c="${esc(c)}" aria-pressed="${c===cls}">${esc(D.classes[c].name)}</button>`).join('');
+  $('room').innerHTML=Object.keys(D.rooms).map(r=>`<option value="${esc(r)}">${esc(D.rooms[r].name)}</option>`).join('');
+  $('room').value=room;
 }
 function build(){
   D=Classroom.load();
@@ -159,13 +183,13 @@ function build(){
   day=pinnedDay||today(); migrate(); st=loadSt(); view=null; fillDays();
   cells=Classroom.render($('seats'),info);
   $('board').hidden=isList();
-  $('editbar').hidden=isList();
+  $('mEdit').hidden=isList();
   if(isList()&&editing) toggleEdit(false);
   $('roster').innerHTML=((D.classes[cls]||{}).students||[]).map(n=>`<option value="${esc(n)}">`).join('');
+  $('q').value=cur().q;
   render();
 }
 function counted(){
-  // count seats that have a student; if none are named yet, count every seat
   const named=cells.filter(c=>nameOf(c.seat));
   return (named.length?named:cells).filter(c=>!st.off[c.seat.id]);
 }
@@ -180,7 +204,7 @@ function render(){
   $('lapno').title=past?'Viewing an earlier day. Taps correct that day.':viewing?'Viewing an earlier lap. Taps correct that lap.':'';
   $('backcur').hidden=!(past||viewing); $('backcur').textContent=past?'↩ Today':'↩ Current';
   $('newlap').disabled=past;
-  $('confirmtxt').textContent='Clear all laps for '+(past?nice(day):'today')+'? Copy the CSV first if you need it.';
+  $('confirmtxt').textContent='Clear all laps for '+(past?nice(day):'today')+'?';
   if(document.activeElement!==$('q')) $('q').value=l.q;
   cells.forEach(({seat,el})=>{
     const id=seat.id, s=l.marks[id]||'', off=!!st.off[id], nm=nameOf(seat);
@@ -193,19 +217,16 @@ function render(){
     el.setAttribute('aria-label',(seat.label?seat.label+' ':'')+(nm||'empty seat')+': '+(off?'absent':(LOOK[s][1]||'not checked')));
   });
   $('seats').classList.toggle('editing',editing);
-  const c=counts(l), pool=counted(), unchecked=pool.filter(x=>!l.marks[x.seat.id]).length;
-  $('tally').innerHTML=
-    `<div class="t"><span>✓ Got it</span><b style="color:var(--got)">${c.got}</b></div>`+
-    `<div class="t"><span>~ Partial</span><b style="color:var(--part)">${c.part}</b></div>`+
-    `<div class="t"><span>✗ Not yet</span><b style="color:var(--not)">${c.not}</b></div>`+
-    `<div class="t"><span>Unchecked</span><b>${unchecked}</b></div>`;
+  const c=counts(l), unchecked=counted().filter(x=>!l.marks[x.seat.id]).length;
+  $('tally').innerHTML=`<span class="g">✓ <b>${c.got}</b></span><span class="p">~ <b>${c.part}</b></span><span class="x">✗ <b>${c.not}</b></span><span><em>Unchecked</em> <b>${unchecked}</b></span>`;
+  const on=view!==null?view:st.laps.length-1;
   $('hist').innerHTML=st.laps.map((l,i)=>{const c=counts(l);
-    const on=(view!==null?view:st.laps.length-1)===i;
-    return `<button type="button" class="row${on?' on':''}" data-i="${i}"><span class="n">${i+1}</span><span class="qq">${l.q?esc(l.q):'<span style="color:var(--muted)">No question typed</span>'}${i===st.laps.length-1?'<span class="tag">Now</span>':''}</span>`+
-      `<span class="c"><span class="g">✓${c.got}</span> <span class="p">~${c.part}</span> <span class="x">✗${c.not}</span></span></button>`}).reverse().join('');
-  const s=$('status'); s.textContent=st.dirty?'Not copied since last change':'CSV copied'; s.className='status'+(st.dirty?' dirty':'');
+    return `<button type="button" class="chip${on===i?' on':''}" data-i="${i}"><span class="t1">Lap ${i+1}${i===st.laps.length-1?' <i>Now</i>':''}<span style="margin-left:auto;color:var(--got)">✓${c.got}</span></span>`+
+      `<span class="t2">${l.q?esc(l.q):'No question'}</span></button>`}).join('');
+  const chip=$('hist').querySelector('.chip.on'); if(chip) chip.scrollIntoView({inline:'nearest',block:'nearest'});
+  $('dirtydot').hidden=!st.dirty;
+  $('status').textContent=st.dirty?'Not copied yet':(st.laps.some(used)?'Copied':'');
 }
-function esc(t){return String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}
 
 // tapping seats
 let pressT=null, longFired=false;
@@ -221,31 +242,39 @@ seatsEl.addEventListener('contextmenu',e=>e.preventDefault());
 seatsEl.addEventListener('click',e=>{
   const b=e.target.closest('.seat'); if(!b||longFired) return;
   const id=b.dataset.id;
-  if(editing){selId=id; renderEditor(); render(); $('edname').focus(); $('edname').select(); return;}
+  if(editing){selId=id; renderEditor(); render(); return;}
   if(st.off[id]) return;
   const m=cur().marks; const next=CYCLE[(CYCLE.indexOf(m[id]||'')+1)%CYCLE.length];
   if(next) m[id]=next; else delete m[id];
   st.dirty=true; save(); render();
 });
 
-$('cls').addEventListener('change',e=>{cls=e.target.value; room=Classroom.roomFor(D,cls,P); $('room').value=room; savePrefs(); build();});
-$('room').addEventListener('change',e=>{room=e.target.value; savePrefs(); build();});
-// Done/Enter closes the keyboard; so does tapping anywhere outside the box
-$('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('q').blur();}});
+$('clsSeg').addEventListener('click',e=>{const b=e.target.closest('button[data-c]'); if(!b||b.dataset.c===cls) return;
+  cls=b.dataset.c; room=Classroom.roomFor(D,cls,P); pinnedDay=null; fillPickers(); savePrefs(); build();});
+$('room').addEventListener('change',e=>{room=e.target.value; pinnedDay=null; savePrefs(); build();});
+$('day').addEventListener('change',e=>{pinnedDay=e.target.value===today()?null:e.target.value; build();});
+
+// keyboard: Done closes it, and so does a tap anywhere outside a text box
+['q','edname'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(id==='edname')$('edsave').click();$(id).blur();}}));
 document.addEventListener('pointerdown',e=>{const a=document.activeElement;
   if(a&&a.tagName==='INPUT'&&!e.target.closest('input,select,textarea,datalist')) a.blur();},true);
 $('q').addEventListener('input',()=>{cur().q=$('q').value; st.dirty=true; save(); render();});
 $('newlap').addEventListener('click',()=>{view=null; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
 
 // recall a lap
-$('hist').addEventListener('click',e=>{const r=e.target.closest('.row'); if(!r) return;
-  const i=+r.dataset.i; view=(i===st.laps.length-1)?null:i; $('q').value=cur().q; render();
-  $('seats').scrollIntoView({block:'start',behavior:'smooth'});});
-$('backcur').addEventListener('click',()=>{if(isPast()){pinnedDay=null;build();}else{view=null;}$('q').value=cur().q;render();});
-$('day').addEventListener('change',e=>{pinnedDay=e.target.value===today()?null:e.target.value; build(); $('q').value=cur().q; render();});
+$('hist').addEventListener('click',e=>{const r=e.target.closest('.chip'); if(!r) return;
+  const i=+r.dataset.i; view=(i===st.laps.length-1)?null:i; $('q').value=cur().q; render();});
+$('backcur').addEventListener('click',()=>{if(isPast()){pinnedDay=null;build();}else{view=null;$('q').value=cur().q;render();}});
+
+// menu
+const menu=$('menu');
+const closeMenu=()=>{menu.hidden=true;$('confirm').hidden=true;$('csv').hidden=true;};
+$('menuBtn').addEventListener('click',()=>{menu.hidden=false;});
+menu.addEventListener('click',e=>{if(e.target===menu)closeMenu();});
 
 // printable summary: students down the side, laps across the top
-$('print').addEventListener('click',()=>{
+$('mPrint').addEventListener('click',()=>{
+  closeMenu();
   const anyNamed=cells.some(c=>nameOf(c.seat));
   const rows=anyNamed?cells.filter(c=>nameOf(c.seat)):cells;
   const sym={got:'✓',part:'~',not:'✗'};
@@ -263,30 +292,34 @@ $('print').addEventListener('click',()=>{
   st.laps.forEach(l=>{const c=counts(l); h+=`<td>${c.got} / ${c.part} / ${c.not}</td>`});
   h+='<td></td></tr></tfoot></table>';
   $('printout').innerHTML=h;
-  window.print();
+  setTimeout(()=>window.print(),50);
 });
 
-// seating edits
+// seating edits (the dock swaps to the editor)
 const seatById=id=>(cells.find(c=>c.seat.id===id)||{}).seat;
 function renderEditor(){
   const has=!!selId, seat=has&&seatById(selId);
-  $('edlabel').textContent=has?('Seat '+seat.label+(st.over[selId]!==undefined?' (changed for today)':'')):'Tap a seat to change who sits there';
+  $('edlabel').textContent=has?('Seat '+seat.label+(st.over[selId]!==undefined?' · changed for today':'')):'Tap a seat to change who sits there';
   ['edname','edsave','edtoday'].forEach(i=>$(i).disabled=!has);
   $('edclear').disabled=!(has&&st.over[selId]!==undefined);
   $('edname').value=has?nameOf(seat):'';
 }
-function toggleEdit(on){editing=on; selId=null; $('editor').hidden=!on; $('editseats').textContent=on?'Done editing':'Edit seating'; renderEditor(); render();}
-$('editseats').addEventListener('click',()=>toggleEdit(!editing));
+function toggleEdit(on){
+  editing=on; selId=null;
+  $('editor').hidden=!on; $('lapdock').hidden=on; $('editbanner').hidden=!on; $('lapbar').hidden=on;
+  renderEditor(); render();
+}
+$('mEdit').addEventListener('click',()=>{closeMenu();toggleEdit(true);});
+$('editdone').addEventListener('click',()=>toggleEdit(false));
 $('edsave').addEventListener('click',()=>{
   if(!selId)return; const v=$('edname').value.trim();
   const d=Classroom.load(); const k=cls+'|'+room; d.charts[k]=d.charts[k]||{};
   if(v) d.charts[k][selId]=v; else delete d.charts[k][selId];
   Classroom.save(d); delete st.over[selId]; save();
-  const keep=selId; build(); selId=keep; renderEditor(); render();
+  const keep=selId, v0=view; D=d; info=Classroom.seats(D,room,cls); cells=Classroom.render($('seats'),info); view=v0; selId=keep; renderEditor(); render();
 });
 $('edtoday').addEventListener('click',()=>{if(!selId)return; st.over[selId]=$('edname').value.trim(); st.dirty=true; save(); renderEditor(); render();});
 $('edclear').addEventListener('click',()=>{if(!selId)return; delete st.over[selId]; save(); renderEditor(); render();});
-$('edname').addEventListener('keydown',e=>{if(e.key==='Enter')$('edsave').click()});
 
 // export
 function toCSV(){
@@ -295,27 +328,26 @@ function toCSV(){
   const anyNamed=cells.some(c=>nameOf(c.seat));
   const rows=anyNamed?cells.filter(c=>nameOf(c.seat)):cells;
   st.laps.forEach((l,i)=>rows.forEach(({seat})=>{
-    const nm=nameOf(seat);
     const v=st.off[seat.id]?'absent':(WORD[l.marks[seat.id]]||'unchecked');
-    lines.push([day,q(D.classes[cls].name),q(D.rooms[room].name),i+1,q(l.q),q(seat.label||''),q(nm),v].join(','));
+    lines.push([day,q(D.classes[cls].name),q(D.rooms[room].name),i+1,q(l.q),q(seat.label||''),q(nameOf(seat)),v].join(','));
   }));
   return lines.join('\n');
 }
-$('copy').addEventListener('click',()=>{
+$('mCopy').addEventListener('click',()=>{
   const t=$('csv'); t.value=toCSV();
-  const ok=()=>{st.dirty=false;save();render();t.hidden=true;};
+  const ok=()=>{st.dirty=false;save();render();t.hidden=true;$('status').textContent='Copied to clipboard';};
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(ok).catch(()=>{t.hidden=false;t.select();});
   else {t.hidden=false;t.select();}
 });
-$('reset').addEventListener('click',()=>{$('confirm').hidden=false});
+$('mClear').addEventListener('click',()=>{$('confirm').hidden=false});
 $('no').addEventListener('click',()=>{$('confirm').hidden=true});
-$('yes').addEventListener('click',()=>{try{localStorage.removeItem(key())}catch(e){} $('confirm').hidden=true; build(); $('q').value=cur().q; render();});
+$('yes').addEventListener('click',()=>{try{localStorage.removeItem(key())}catch(e){} closeMenu(); build();});
 
-// refresh if Setup changed things in another tab
+// refresh if Setup changed things
 addEventListener('storage',e=>{if(e.key==='classroom.v1'){D=Classroom.load();fillPickers();build();}});
 addEventListener('pageshow',()=>{D=Classroom.load();fillPickers();build();});
 // roll over to a new day if the app was left open overnight
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!pinnedDay&&day!==today()){build();$('q').value=cur().q;render();}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!pinnedDay&&day!==today())build();});
 
 async function wake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')await navigator.wakeLock.request('screen')}catch(e){}}
 document.addEventListener('visibilitychange',wake); wake();
