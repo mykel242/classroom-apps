@@ -55,7 +55,7 @@
   <div class="bar">
     <span class="lapno" id="lapno">Lap 1</span>
     <button class="ghost" id="backcur" hidden title="Back to the current lap">↩ Current</button>
-    <input id="q" class="grow" type="text" placeholder="Question for this lap, e.g. 3/4 ÷ 1/2 = ?" autocomplete="off" aria-label="Lap question">
+    <input id="q" class="grow" type="text" enterkeyhint="done" placeholder="Question for this lap, e.g. 3/4 ÷ 1/2 = ?" autocomplete="off" aria-label="Lap question">
     <button class="primary" id="newlap">New lap</button>
   </div>
 
@@ -230,6 +230,10 @@ seatsEl.addEventListener('click',e=>{
 
 $('cls').addEventListener('change',e=>{cls=e.target.value; room=Classroom.roomFor(D,cls,P); $('room').value=room; savePrefs(); build();});
 $('room').addEventListener('change',e=>{room=e.target.value; savePrefs(); build();});
+// Done/Enter closes the keyboard; so does tapping anywhere outside the box
+$('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('q').blur();}});
+document.addEventListener('pointerdown',e=>{const a=document.activeElement;
+  if(a&&a.tagName==='INPUT'&&!e.target.closest('input,select,textarea,datalist')) a.blur();},true);
 $('q').addEventListener('input',()=>{cur().q=$('q').value; st.dirty=true; save(); render();});
 $('newlap').addEventListener('click',()=>{view=null; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
 
