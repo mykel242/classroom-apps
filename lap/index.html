@@ -73,22 +73,22 @@
       <button class="ghost" id="edtoday" disabled>Today only</button>
       <button class="ghost" id="edclear" disabled>Undo today's change</button>
     </div>
-    <p class="hint">"Today only" lasts until you tap Start new class. Underlined italic names are today-only.</p>
+    <p class="hint">"Today only" lasts for today's class. Underlined italic names are today-only.</p>
   </div>
 
   <div class="tally" id="tally"></div>
 
-  <h2>Laps this class</h2>
+  <div class="bar"><h2 class="grow" style="margin:0">Laps</h2><select id="day" aria-label="Day"></select></div>
   <div class="hist" id="hist"></div>
 
   <div class="bar">
     <button class="ghost" id="print">Print laps</button>
     <button class="ghost" id="copy">Copy CSV</button>
-    <button class="ghost" id="reset">Start new class</button>
+    <button class="ghost" id="reset">Clear laps</button>
     <span class="status" id="status"></span>
   </div>
   <div class="panel confirm" id="confirm" hidden>
-    <span>Clear all laps for this class and room? Copy the CSV first if you need it.</span>
+    <span id="confirmtxt">Clear all laps for this day? Copy the CSV first if you need it.</span>
     <div class="bar"><button class="danger" id="yes">Clear</button><button class="ghost" id="no">Keep</button></div>
   </div>
   <textarea id="csv" rows="5" readonly hidden aria-label="CSV text"></textarea>
@@ -107,19 +107,43 @@ let D=Classroom.load();
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=(P.cls&&D.classes[P.cls])?P.cls:Object.keys(D.classes)[0];
 let room=Classroom.roomFor(D,cls,P);
-let st, info, cells=[], editing=false, selId=null, view=null;
+let st, info, cells=[], editing=false, selId=null, view=null, pinnedDay=null, day;
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const dayOf=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const isPast=()=>day!==today();
+const nice=(d,o)=>new Date(d+'T12:00:00').toLocaleDateString(undefined,o||{weekday:'short',month:'short',day:'numeric'});
 
 function savePrefs(){P.cls=cls;P['room:'+cls]=room;try{localStorage.setItem(PK,JSON.stringify(P))}catch(e){}}
 const blankLap=()=>({q:'',t:Date.now(),marks:{}});
-const key=()=>'lapTracker.v2:'+cls+'|'+room;
+// one saved session per class + room + day
+const prefix=()=>'lapTracker.v3:'+cls+'|'+room+'|';
+const key=()=>prefix()+day;
+function migrate(){
+  // file laps from earlier versions under the day they were taken
+  const olds=['lapTracker.v2:'+cls+'|'+room]; if(cls==='601'&&room==='math') olds.push('lapTracker.v1');
+  olds.forEach(k=>{try{const s=JSON.parse(localStorage.getItem(k));
+    if(s&&s.laps&&s.laps.length){const k3=prefix()+dayOf(s.laps[0].t||Date.now());
+      if(!localStorage.getItem(k3)){s.over=s.over||{};localStorage.setItem(k3,JSON.stringify(s));}}
+    localStorage.removeItem(k);}catch(e){}});
+}
 function loadSt(){
-  try{const s=JSON.parse(localStorage.getItem(key())); if(s&&s.laps&&s.laps.length){s.over=s.over||{};return s;}}catch(e){}
-  if(cls==='601'&&room==='math'){ // carry over laps from the first version
-    try{const s=JSON.parse(localStorage.getItem('lapTracker.v1')); if(s&&s.laps&&s.laps.length){s.over=s.over||{};return s;}}catch(e){}
-  }
+  try{const s=JSON.parse(localStorage.getItem(key())); if(s&&s.laps&&s.laps.length){s.over=s.over||{};s.off=s.off||{};return s;}}catch(e){}
   return {laps:[blankLap()],off:{},over:{},dirty:false};
 }
-function save(){try{localStorage.setItem(key(),JSON.stringify(st))}catch(e){}}
+const used=l=>l.q||Object.keys(l.marks).length;
+function days(){
+  const pre=prefix(), out=new Set([today()]);
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(pre))out.add(k.slice(pre.length))}}catch(e){}
+  return [...out].sort().reverse();
+}
+function fillDays(){
+  $('day').innerHTML=days().map(d=>{let n=0;
+    try{const s=JSON.parse(localStorage.getItem(prefix()+d));n=s?s.laps.filter(used).length:0}catch(e){}
+    return `<option value="${d}">${d===today()?'Today':nice(d)} · ${n} lap${n===1?'':'s'}</option>`}).join('');
+  $('day').value=day;
+}
+function save(){try{localStorage.setItem(key(),JSON.stringify(st))}catch(e){} fillDays();}
 const cur=()=>st.laps[view!==null&&view<st.laps.length?view:st.laps.length-1];
 const nameOf=seat=>st.over[seat.id]!==undefined?st.over[seat.id]:seat.student;
 const isList=()=>info.layout==='list';
@@ -132,7 +156,7 @@ function fillPickers(){
 function build(){
   D=Classroom.load();
   info=Classroom.seats(D,room,cls);
-  st=loadSt(); view=null;
+  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; fillDays();
   cells=Classroom.render($('seats'),info);
   $('board').hidden=isList();
   $('editbar').hidden=isList();
@@ -150,10 +174,13 @@ function counts(l){const o={got:0,part:0,not:0};Object.values(l.marks).forEach(v
 function render(){
   const l=cur();
   const viewing=view!==null&&view<st.laps.length-1;
-  $('lapno').textContent=viewing?('⚠ Lap '+(view+1)+' of '+st.laps.length):'Lap '+st.laps.length;
-  $('lapno').classList.toggle('past',viewing);
-  $('lapno').title=viewing?'Viewing an earlier lap. Taps correct that lap.':'';
-  $('backcur').hidden=!viewing;
+  const past=isPast(), lapTxt=viewing?('Lap '+(view+1)+' of '+st.laps.length):'Lap '+st.laps.length;
+  $('lapno').textContent=(past||viewing?'⚠ ':'')+(past?nice(day,{month:'short',day:'numeric'})+' · ':'')+lapTxt;
+  $('lapno').classList.toggle('past',past||viewing);
+  $('lapno').title=past?'Viewing an earlier day. Taps correct that day.':viewing?'Viewing an earlier lap. Taps correct that lap.':'';
+  $('backcur').hidden=!(past||viewing); $('backcur').textContent=past?'↩ Today':'↩ Current';
+  $('newlap').disabled=past;
+  $('confirmtxt').textContent='Clear all laps for '+(past?nice(day):'today')+'? Copy the CSV first if you need it.';
   if(document.activeElement!==$('q')) $('q').value=l.q;
   cells.forEach(({seat,el})=>{
     const id=seat.id, s=l.marks[id]||'', off=!!st.off[id], nm=nameOf(seat);
@@ -210,15 +237,16 @@ $('newlap').addEventListener('click',()=>{view=null; st.laps.push(blankLap()); s
 $('hist').addEventListener('click',e=>{const r=e.target.closest('.row'); if(!r) return;
   const i=+r.dataset.i; view=(i===st.laps.length-1)?null:i; $('q').value=cur().q; render();
   $('seats').scrollIntoView({block:'start',behavior:'smooth'});});
-$('backcur').addEventListener('click',()=>{view=null; $('q').value=cur().q; render();});
+$('backcur').addEventListener('click',()=>{if(isPast()){pinnedDay=null;build();}else{view=null;}$('q').value=cur().q;render();});
+$('day').addEventListener('change',e=>{pinnedDay=e.target.value===today()?null:e.target.value; build(); $('q').value=cur().q; render();});
 
 // printable summary: students down the side, laps across the top
 $('print').addEventListener('click',()=>{
   const anyNamed=cells.some(c=>nameOf(c.seat));
   const rows=anyNamed?cells.filter(c=>nameOf(c.seat)):cells;
   const sym={got:'✓',part:'~',not:'✗'};
-  const day=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-  let h=`<h1>${esc(D.classes[cls].name)} · ${esc(D.rooms[room].name)} · ${esc(day)}</h1><table><thead><tr><th class="l">Seat</th><th class="l">Student</th>`;
+  const when=nice(day,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  let h=`<h1>${esc(D.classes[cls].name)} · ${esc(D.rooms[room].name)} · ${esc(when)}</h1><table><thead><tr><th class="l">Seat</th><th class="l">Student</th>`;
   st.laps.forEach((l,i)=>h+=`<th>Lap ${i+1}<small>${esc(l.q||'')}</small></th>`);
   h+='<th>✓ total</th></tr></thead><tbody>';
   rows.forEach(({seat})=>{
@@ -258,7 +286,6 @@ $('edname').addEventListener('keydown',e=>{if(e.key==='Enter')$('edsave').click(
 
 // export
 function toCSV(){
-  const day=new Date().toISOString().slice(0,10);
   const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
   const lines=['date,class,room,lap,question,seat,student,status'];
   const anyNamed=cells.some(c=>nameOf(c.seat));
@@ -278,11 +305,13 @@ $('copy').addEventListener('click',()=>{
 });
 $('reset').addEventListener('click',()=>{$('confirm').hidden=false});
 $('no').addEventListener('click',()=>{$('confirm').hidden=true});
-$('yes').addEventListener('click',()=>{st={laps:[blankLap()],off:{},over:{},dirty:false}; save(); $('confirm').hidden=true; render();});
+$('yes').addEventListener('click',()=>{try{localStorage.removeItem(key())}catch(e){} $('confirm').hidden=true; build(); $('q').value=cur().q; render();});
 
 // refresh if Setup changed things in another tab
 addEventListener('storage',e=>{if(e.key==='classroom.v1'){D=Classroom.load();fillPickers();build();}});
 addEventListener('pageshow',()=>{D=Classroom.load();fillPickers();build();});
+// roll over to a new day if the app was left open overnight
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!pinnedDay&&day!==today()){build();$('q').value=cur().q;render();}});
 
 async function wake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')await navigator.wakeLock.request('screen')}catch(e){}}
 document.addEventListener('visibilitychange',wake); wake();
