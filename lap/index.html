@@ -26,7 +26,9 @@
 #csv{width:100%;font:13px var(--mono)}
 .row{cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
 .row.on{border:2px solid var(--accent)}
-.viewing{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--card);border:2px solid var(--accent);border-radius:10px;padding:8px 12px;font-weight:600}
+.lapno.past{color:var(--part)}
+#backcur{min-height:44px;padding:0 12px;font-size:15px}
+.tag{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
 #printout{display:none}
 @media print{
   :root{--bg:#fff;--fg:#000;--card:#fff;--line:#999;--muted:#444}
@@ -52,14 +54,11 @@
 
   <div class="bar">
     <span class="lapno" id="lapno">Lap 1</span>
+    <button class="ghost" id="backcur" hidden title="Back to the current lap">↩ Current</button>
     <input id="q" class="grow" type="text" placeholder="Question for this lap, e.g. 3/4 ÷ 1/2 = ?" autocomplete="off" aria-label="Lap question">
     <button class="primary" id="newlap">New lap</button>
   </div>
 
-  <div class="viewing" id="viewing" hidden>
-    <span class="grow">Viewing an earlier lap. Taps here correct that lap.</span>
-    <button class="primary" id="backcur">Back to current lap</button>
-  </div>
   <div class="board" id="board">Front · Board</div>
   <div id="seats" aria-label="Seats"></div>
   <p class="hint">Tap a seat to cycle: ✓ got it → ~ partial → ✗ not yet → blank. Long-press marks a student absent for this class.</p>
@@ -151,8 +150,10 @@ function counts(l){const o={got:0,part:0,not:0};Object.values(l.marks).forEach(v
 function render(){
   const l=cur();
   const viewing=view!==null&&view<st.laps.length-1;
-  $('lapno').textContent=viewing?('Lap '+(view+1)+' of '+st.laps.length):'Lap '+st.laps.length;
-  $('viewing').hidden=!viewing;
+  $('lapno').textContent=viewing?('⚠ Lap '+(view+1)+' of '+st.laps.length):'Lap '+st.laps.length;
+  $('lapno').classList.toggle('past',viewing);
+  $('lapno').title=viewing?'Viewing an earlier lap. Taps correct that lap.':'';
+  $('backcur').hidden=!viewing;
   if(document.activeElement!==$('q')) $('q').value=l.q;
   cells.forEach(({seat,el})=>{
     const id=seat.id, s=l.marks[id]||'', off=!!st.off[id], nm=nameOf(seat);
@@ -173,7 +174,7 @@ function render(){
     `<div class="t"><span>Unchecked</span><b>${unchecked}</b></div>`;
   $('hist').innerHTML=st.laps.map((l,i)=>{const c=counts(l);
     const on=(view!==null?view:st.laps.length-1)===i;
-    return `<button type="button" class="row${on?' on':''}" data-i="${i}"><span class="n">${i+1}</span><span class="qq">${l.q?esc(l.q):'<span style="color:var(--muted)">No question typed</span>'}</span>`+
+    return `<button type="button" class="row${on?' on':''}" data-i="${i}"><span class="n">${i+1}</span><span class="qq">${l.q?esc(l.q):'<span style="color:var(--muted)">No question typed</span>'}${i===st.laps.length-1?'<span class="tag">Now</span>':''}</span>`+
       `<span class="c"><span class="g">✓${c.got}</span> <span class="p">~${c.part}</span> <span class="x">✗${c.not}</span></span></button>`}).reverse().join('');
   const s=$('status'); s.textContent=st.dirty?'Not copied since last change':'CSV copied'; s.className='status'+(st.dirty?' dirty':'');
 }
