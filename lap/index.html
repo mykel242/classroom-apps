@@ -190,7 +190,9 @@ function fillDays(){
 }
 function save(){try{localStorage.setItem(key(),JSON.stringify(st))}catch(e){} fillDays();}
 const cur=()=>st.laps[view!==null&&view<st.laps.length?view:st.laps.length-1];
-const nameOf=seat=>st.over[seat.id]!==undefined?st.over[seat.id]:seat.student;
+// who sits in a seat today: a today-only swap wins over the seating chart (both hold student ids)
+const sidOf=seat=>st.over[seat.id]!==undefined?st.over[seat.id]:seat.sid;
+const nameOf=seat=>st.over[seat.id]!==undefined?Classroom.nameOf(D,cls,st.over[seat.id]):seat.student;
 const isList=()=>info.layout==='list';
 
 function fillPickers(){
@@ -355,10 +357,10 @@ function renderEditor(){
   $('edundo').hidden=!(seat&&st.over[selId]!==undefined);
   document.querySelectorAll('#edmode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===edMode));
   const roster=(D.classes[cls]||{}).students||[];
-  const where={}; cells.forEach(({seat})=>{const n=nameOf(seat); if(n) where[n]=seat;});
-  const btn=n=>{const w=where[n]; const here=w&&w.id===selId;
-    return `<button type="button" data-n="${esc(n)}" class="${here?'here':w?'seated':''}" ${seat?'':'disabled'}>${esc(n)}${w&&!here?' <small>'+esc(w.label)+'</small>':''}</button>`;};
-  const free=roster.filter(n=>!where[n]), taken=roster.filter(n=>where[n]);
+  const where={}; cells.forEach(({seat})=>{const id=sidOf(seat); if(id) where[id]=seat;});
+  const btn=s=>{const w=where[s.id]; const here=w&&w.id===selId;
+    return `<button type="button" data-n="${esc(s.id)}" class="${here?'here':w?'seated':''}" ${seat?'':'disabled'}>${esc(s.name)}${w&&!here?' <small>'+esc(w.label)+'</small>':''}</button>`;};
+  const free=roster.filter(s=>!where[s.id]), taken=roster.filter(s=>where[s.id]);
   $('edpick').innerHTML=(roster.length?'':'<span class="hint">Add students to this class in Setup first.</span>')
     +(free.length?'<h4>Not seated</h4>'+free.map(btn).join(''):'')
     +(taken.length?'<h4>Seated · tap to move here</h4>'+taken.map(btn).join(''):'');
@@ -381,7 +383,7 @@ $('edmode').addEventListener('click',e=>{const b=e.target.closest('button[data-m
 $('edpick').addEventListener('click',e=>{
   const b=e.target.closest('button[data-n]'); if(!b||!selId) return;
   const n=b.dataset.n, wasEmpty=!nameOf(seatById(selId));
-  const from=cells.find(c=>nameOf(c.seat)===n&&c.seat.id!==selId);
+  const from=cells.find(c=>sidOf(c.seat)===n&&c.seat.id!==selId);
   if(edMode==='chart'){
     const d=Classroom.load(), k=cls+'|'+room, ch=d.charts[k]=d.charts[k]||{};
     Object.keys(ch).forEach(id=>{if(ch[id]===n) delete ch[id];});

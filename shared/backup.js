@@ -1,12 +1,16 @@
-/* Export / import of classroom setup (classes, rosters, rooms, seating charts).
+/* Export / import of classroom setup (classes, rosters, rooms, seating charts) and, optionally, saved laps.
    Import never trusts the file: it repairs what it can, skips what it can't,
-   and shows a preview of every change before anything is saved. */
+   and shows a preview of every change before anything is saved.
+   Format 2 tracks students by permanent id; format 1 (names only) still imports. */
 (function(root){
-  const FORMAT=1;
+  const FORMAT=2;
   const lc=s=>String(s).trim().toLowerCase();
   const str=v=>typeof v==='string'?v.trim():(typeof v==='number'?String(v):'');
   const clampInt=(v,lo,hi,def)=>{const n=Math.round(Number(v));return Number.isFinite(n)?Math.max(lo,Math.min(hi,n)):def;};
   const rowLetter=i=>String.fromCharCode(65+i);
+  const genId=()=>'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const MARKS=new Set(['got','part','not']);
+  const DAY=/^\d{4}-\d{2}-\d{2}$/;
 
   function seatIds(room){
     if(!room) return new Set();
@@ -15,10 +19,14 @@
     return new Set();
   }
   const describeRoom=r=>r.type==='grid'?`${r.rows}×${r.cols} grid`:r.type==='pods'?`${r.pods} pods of ${r.size}`:'list';
+  const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
 
-  function exportDoc(d,build){
-    return {app:'classroom-setup',format:FORMAT,exported:new Date().toISOString(),build:build||null,
+  // laps: {'class|room|YYYY-MM-DD': session}
+  function exportDoc(d,build,laps){
+    const doc={app:'classroom-setup',format:FORMAT,exported:new Date().toISOString(),build:build||null,
       data:{classes:d.classes,rooms:d.rooms,defaultRoom:d.defaultRoom||{},charts:d.charts||{}}};
+    if(laps&&Object.keys(laps).length) doc.laps=laps;
+    return doc;
   }
 
   // ---- parse + repair -------------------------------------------------
@@ -27,7 +35,6 @@
     if(typeof text!=='string'||!text.trim()) return {ok:false,error:'The file is empty.'};
     let t=text.replace(/^﻿/,'').trim(), raw;
     try{raw=JSON.parse(t);}catch(e){
-      // tolerate stray text around the JSON (e.g. pasted from an email)
       const a=t.indexOf('{'), b=t.lastIndexOf('}');
       if(a>=0&&b>a){try{raw=JSON.parse(t.slice(a,b+1));warnings.push('Extra text around the backup was ignored.');}catch(e2){}}
       if(!raw) return {ok:false,error:"This file isn't a readable classroom backup. It may be cut off or damaged. Nothing was changed."};
@@ -36,19 +43,26 @@
     if(!src||typeof src!=='object'||(!src.classes&&!src.rooms)) return {ok:false,error:"This file doesn't contain classes or rooms. Nothing was changed."};
     if(raw.format&&raw.format>FORMAT) warnings.push('This backup was made by a newer version. Parts it does not understand were skipped.');
     const data=sanitize(src,warnings);
-    return {ok:true,data,warnings,meta:{exported:raw.exported||null,build:raw.build||null}};
+    const laps=raw.laps?sanitizeLaps(raw.laps,data,warnings):{};
+    return {ok:true,data,laps,warnings,meta:{exported:raw.exported||null,build:raw.build||null}};
   }
 
   function sanitize(src,warnings){
     const out={classes:{},rooms:{},defaultRoom:{},charts:{}};
-    // classes: accept an object keyed by id, or an array
     const cin=Array.isArray(src.classes)?Object.fromEntries(src.classes.map((c,i)=>[str(c&&c.id)||('c'+i),c])):(src.classes||{});
     let skipped=0;
     Object.keys(cin).forEach(id=>{
       const c=cin[id]; if(!c||typeof c!=='object'){skipped++;return;}
       const name=str(c.name)||str(id); if(!name){skipped++;return;}
-      const seen=new Set(), students=[];
-      (Array.isArray(c.students)?c.students:[]).forEach(s=>{const v=typeof s==='object'&&s?s.name:s; const n=typeof v==='string'?v.trim():''; if(!n){skipped++;return;} if(n&&!seen.has(lc(n))){seen.add(lc(n));students.push(n);} else if(n) warnings.push(`${name}: duplicate "${n}" removed.`);});
+      const ids=new Set(), students=[];
+      (Array.isArray(c.students)?c.students:[]).forEach(s=>{
+        const n=typeof s==='string'?s.trim():(s&&typeof s.name==='string'?s.name.trim():'');
+        if(!n){skipped++;return;}
+        let sid=s&&typeof s==='object'&&typeof s.id==='string'&&s.id.trim()?s.id.trim():'';
+        if(!sid&&students.some(x=>lc(x.name)===lc(n))){warnings.push(`${name}: duplicate "${n}" removed.`);return;}  // names-only files: same name = same student
+        if(!sid||ids.has(sid)) sid=genId();
+        ids.add(sid); students.push({id:sid,name:n});
+      });
       out.classes[str(id)]={name,students};
     });
     const rin=Array.isArray(src.rooms)?Object.fromEntries(src.rooms.map((r,i)=>[str(r&&r.id)||('r'+i),r])):(src.rooms||{});
@@ -69,22 +83,42 @@
     if(skipped) warnings.push(`${skipped} damaged or unknown item${skipped>1?'s were':' was'} skipped.`);
     return out;
   }
-  // keep only real seats, real students, and each student in one seat
+  // a chart value may be a student id or (older files) a name; keep real seats, real students, one seat each
   function cleanChart(ch,room,cls,warnings,label){
-    const ok=seatIds(room), roster=new Map(cls.students.map(n=>[lc(n),n])), used=new Set(), out={};
-    let dropped=0;
+    const ok=seatIds(room), byId=new Map(cls.students.map(s=>[s.id,s.id])), byName=new Map();
+    cls.students.forEach(s=>{if(!byName.has(lc(s.name))) byName.set(lc(s.name),s.id);});
+    const used=new Set(), out={}; let dropped=0;
     Object.keys(ch).forEach(seat=>{
-      const n=roster.get(lc(str(ch[seat])));
-      if(!ok.has(seat)||!n||used.has(lc(n))){dropped++;return;}
-      out[seat]=n; used.add(lc(n));
+      const v=str(ch[seat]); const sid=byId.get(v)||byName.get(lc(v));
+      if(!ok.has(seat)||!sid||used.has(sid)){dropped++;return;}
+      out[seat]=sid; used.add(sid);
     });
-    if(dropped&&warnings) warnings.push(`${label}: ${dropped} seat${dropped>1?'s':''} skipped (seat no longer exists, student not on roster, or listed twice).`);
+    if(dropped&&warnings) warnings.push(`${label}: ${plural(dropped,'seat')} skipped (seat no longer exists, student not on roster, or listed twice).`);
+    return out;
+  }
+  function sanitizeLaps(src,data,warnings){
+    const out={}; let bad=0;
+    if(!src||typeof src!=='object') return out;
+    Object.keys(src).forEach(k=>{
+      const [c,r,day]=k.split('|'), s=src[k];
+      if(!data.classes[c]||!data.rooms[r]||!DAY.test(day||'')||!s||!Array.isArray(s.laps)){bad++;return;}
+      const sids=new Set(data.classes[c].students.map(x=>x.id));
+      const seatOk=x=>typeof x==='string'&&(x.startsWith('S:')?sids.has(x.slice(2)):x.length<12);
+      const laps=s.laps.filter(l=>l&&typeof l==='object').map(l=>{const marks={};
+        Object.keys(l.marks||{}).forEach(x=>{if(seatOk(x)&&MARKS.has(l.marks[x])) marks[x]=l.marks[x];});
+        return {q:typeof l.q==='string'?l.q.slice(0,300):'',t:Number(l.t)||Date.parse(day+'T12:00:00'),marks};});
+      if(!laps.length){bad++;return;}
+      const off={}; Object.keys(s.off||{}).forEach(x=>{if(seatOk(x)&&s.off[x]) off[x]=true;});
+      const over={}; Object.keys(s.over||{}).forEach(x=>{const v=s.over[x]; if(seatOk(x)&&(v===''||sids.has(v))) over[x]=v;});
+      out[k]={laps,off,over,dirty:false};
+    });
+    if(bad) warnings.push(`${plural(bad,'saved day')} of laps couldn't be read and ${bad===1?'was':'were'} skipped.`);
     return out;
   }
 
   // ---- reconcile ------------------------------------------------------
-  // Match file items to tablet items by id, then by name. Returns the new setup and a readable summary.
-  function plan(cur,inc,mode){
+  // Match file items to tablet items by id, then by name. Returns the new setup, lap writes, and a readable summary.
+  function plan(cur,inc,mode,incLaps,curLaps){
     const res={classes:{},rooms:{},defaultRoom:{},charts:{}}, sum=[], warn=[];
     const merge=mode!=='replace';
     const matcher=(curObj,incObj)=>{
@@ -97,7 +131,7 @@
       });
       return map;
     };
-    const cmap=matcher(cur.classes,inc.classes), rmap=matcher(cur.rooms,inc.rooms);
+    const cmap=matcher(cur.classes,inc.classes), rmap=matcher(cur.rooms,inc.rooms), smaps={};
 
     // rooms
     const rlines=[];
@@ -115,24 +149,35 @@
     Object.keys(cur.rooms).filter(k=>!incRoomTargets.has(k)).forEach(k=>rlines.push(merge?`Kept (not in file): ${cur.rooms[k].name}`:`Removed: ${cur.rooms[k].name}`));
     if(rlines.length) sum.push({title:'Rooms',lines:rlines});
 
-    // classes and rosters
+    // classes and rosters (students matched by id, then by name)
     if(merge) Object.assign(res.classes,JSON.parse(JSON.stringify(cur.classes)));
     const incClsTargets=new Set(Object.values(cmap));
     Object.keys(inc.classes).forEach(id=>{
-      const to=cmap[id], c=inc.classes[id], old=cur.classes[to], lines=[];
-      if(!old){res.classes[to]={name:c.name,students:c.students.slice()}; lines.push(`New class with ${c.students.length} student${c.students.length===1?'':'s'}`);}
+      const to=cmap[id], c=inc.classes[id], old=cur.classes[to], lines=[], smap=smaps[id]={};
+      const oldList=old?old.students:[], byId=new Map(oldList.map(s=>[s.id,s])), used=new Set();
+      c.students.forEach(s=>{
+        let m=byId.has(s.id)&&!used.has(s.id)?s.id:null;
+        if(!m){const n=oldList.find(o=>!used.has(o.id)&&lc(o.name)===lc(s.name)&&!c.students.some(x=>x.id===o.id)); if(n) m=n.id;}
+        if(!m) m=byId.has(s.id)||used.has(s.id)?genId():s.id;
+        smap[s.id]=m; used.add(m);
+      });
+      const added=c.students.filter(s=>!byId.has(smap[s.id]));
+      const renamed=c.students.filter(s=>byId.has(smap[s.id])&&byId.get(smap[s.id]).name!==s.name);
+      const onlyHere=oldList.filter(o=>!used.has(o.id));
+      const fromFile=c.students.map(s=>({id:smap[s.id],name:s.name}));
+      let students;
+      if(merge){const fileById=new Map(fromFile.map(s=>[s.id,s]));
+        students=oldList.map(o=>fileById.get(o.id)||o).concat(fromFile.filter(s=>!byId.has(s.id)));}
+      else students=fromFile;
+      if(!old) lines.push(`New class with ${plural(c.students.length,'student')}`);
       else{
         if(old.name!==c.name) lines.push(`Renamed from ${old.name}`);
-        const have=new Set(old.students.map(lc)), inFile=new Set(c.students.map(lc));
-        const added=c.students.filter(n=>!have.has(lc(n))), onlyHere=old.students.filter(n=>!inFile.has(lc(n)));
-        let students;
-        if(merge){students=old.students.concat(added);}
-        else students=c.students.slice();
-        if(added.length) lines.push(`Adds ${added.length}: ${added.join(', ')}`);
-        if(onlyHere.length) lines.push(`${merge?'Keeps':'Removes'} ${onlyHere.length} only on this tablet: ${onlyHere.join(', ')}`);
-        if(!added.length&&!onlyHere.length&&old.name===c.name) lines.push('Roster already matches');
-        res.classes[to]={name:c.name,students};
+        if(added.length) lines.push(`Adds ${added.length}: ${added.map(s=>s.name).join(', ')}`);
+        if(renamed.length) lines.push(`Renames: ${renamed.map(s=>byId.get(smap[s.id]).name+' → '+s.name).join(', ')}`);
+        if(onlyHere.length) lines.push(`${merge?'Keeps':'Removes'} ${onlyHere.length} only on this tablet: ${onlyHere.map(s=>s.name).join(', ')}`);
+        if(!added.length&&!renamed.length&&!onlyHere.length&&old.name===c.name) lines.push('Roster already matches');
       }
+      res.classes[to]={name:c.name,students};
       sum.push({title:'Class '+c.name,lines});
     });
     const goneCls=Object.keys(cur.classes).filter(k=>!incClsTargets.has(k));
@@ -144,29 +189,52 @@
     if(merge) Object.assign(res.defaultRoom,cur.defaultRoom||{});
     Object.keys(inc.defaultRoom).forEach(c=>{res.defaultRoom[cmap[c]]=rmap[inc.defaultRoom[c]];});
 
-    // seating charts
+    // seating charts (values are student ids)
     const clines=[];
     if(merge) Object.keys(cur.charts||{}).forEach(k=>{res.charts[k]=Object.assign({},cur.charts[k]);});
     Object.keys(inc.charts).forEach(k=>{
-      const [c,r]=k.split('|'), to=cmap[c]+'|'+rmap[r], incCh=inc.charts[k], before=(cur.charts||{})[to]||{};
+      const [c,r]=k.split('|'), to=cmap[c]+'|'+rmap[r], before=(cur.charts||{})[to]||{};
+      const incCh={}; Object.keys(inc.charts[k]).forEach(s=>{incCh[s]=smaps[c][inc.charts[k][s]];});
       let next;
       if(merge){next=Object.assign({},before);
-        const placed=new Set(Object.values(incCh).map(lc));
-        Object.keys(next).forEach(s=>{if(placed.has(lc(next[s]))) delete next[s];});   // a student moves, not duplicates
+        const placed=new Set(Object.values(incCh));
+        Object.keys(next).forEach(s=>{if(placed.has(next[s])) delete next[s];});   // a student moves, not duplicates
         Object.assign(next,incCh);}
-      else next=Object.assign({},incCh);
+      else next=incCh;
       const changed=new Set([...Object.keys(before),...Object.keys(next)].filter(s=>before[s]!==next[s])).size;
       res.charts[to]=next;
-      if(changed) clines.push(`${inc.classes[c].name} · ${inc.rooms[r].name}: ${changed} seat${changed>1?'s':''} change`);
+      if(changed) clines.push(`${inc.classes[c].name} · ${inc.rooms[r].name}: ${plural(changed,'seat')} change`);
     });
-    // final check: every chart fits its room and roster
     Object.keys(res.charts).forEach(k=>{const [c,r]=k.split('|');
       if(!res.classes[c]||!res.rooms[r]){delete res.charts[k];return;}
       res.charts[k]=cleanChart(res.charts[k],res.rooms[r],res.classes[c],warn,`${res.classes[c].name} · ${res.rooms[r].name}`);
       if(!Object.keys(res.charts[k]).length) delete res.charts[k];});
     Object.keys(res.defaultRoom).forEach(c=>{if(!res.classes[c]||!res.rooms[res.defaultRoom[c]]) delete res.defaultRoom[c];});
     sum.push({title:'Seating charts',lines:clines.length?clines:['No seat changes']});
-    return {result:res,summary:sum,warnings:warn};
+
+    // saved laps: added when the tablet doesn't have that day; differing days follow the mode
+    const lapWrites={};
+    if(incLaps&&Object.keys(incLaps).length){
+      let add=0, same=0, keep=0, over=0;
+      Object.keys(incLaps).forEach(k=>{
+        const [c,r,day]=k.split('|'), smap=smaps[c]||{}, s=JSON.parse(JSON.stringify(incLaps[k]));
+        const mv=o=>{const out={}; Object.keys(o||{}).forEach(x=>{out[x.startsWith('S:')?'S:'+(smap[x.slice(2)]||x.slice(2)):x]=o[x];}); return out;};
+        s.laps.forEach(l=>{l.marks=mv(l.marks);}); s.off=mv(s.off); s.over=mv(s.over);
+        Object.keys(s.over).forEach(x=>{if(s.over[x]) s.over[x]=smap[s.over[x]]||s.over[x];});
+        const to=cmap[c]+'|'+rmap[r]+'|'+day, mine=curLaps&&curLaps[to];
+        if(!mine){lapWrites[to]=s; add++;}
+        else if(JSON.stringify(mine.laps)===JSON.stringify(s.laps)) same++;
+        else if(merge) keep++;
+        else{lapWrites[to]=s; over++;}
+      });
+      const l=[];
+      if(add) l.push(`Adds ${plural(add,'day')} of laps`);
+      if(same) l.push(`${plural(same,'day')} already match`);
+      if(keep) l.push(`${plural(keep,'day')} differ; this tablet's copy is kept`);
+      if(over) l.push(`${plural(over,'day')} differ; replaced with the file's copy`);
+      sum.push({title:'Saved laps',lines:l.length?l:['Nothing to add']});
+    }
+    return {result:res,lapWrites,summary:sum,warnings:warn};
   }
 
   const api={exportDoc,parse,plan,FORMAT};

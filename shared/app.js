@@ -13,6 +13,8 @@
     try{const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update();}catch(e){}
     location.reload();
   });
+  // ask Chrome not to clear this app's data when space runs low
+  if(window.Classroom&&Classroom.protectStorage) Classroom.protectStorage();
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
     // when a new version takes over, reload once so the screen shows it

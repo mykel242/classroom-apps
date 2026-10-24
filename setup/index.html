@@ -98,6 +98,7 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
         <div class="bar"><button class="primary" id="pasteAdd">Add these students</button><button class="ghost" id="pasteCancel">Cancel</button></div>
       </div>
       <div class="students" id="students"></div>
+      <p class="hint" id="stuNote" hidden style="color:var(--part)"></p>
       <p class="hint">Tap a name to rename it. Renaming keeps that student's seat and past marks.</p>
 
       <div class="danger-zone">
@@ -135,13 +136,15 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
   <!-- BACKUP -->
   <section id="tab-backup" class="panel" hidden>
     <h2>Export</h2>
-    <p class="hint">Saves classes, rosters, rooms and seating charts to one file. Laps aren't included.</p>
+    <p class="hint">Saves classes, rosters, rooms and seating charts to one file.</p>
+    <label class="bar" style="gap:8px;font-size:16px"><input type="checkbox" id="expLaps" checked style="width:22px;height:22px"> Include saved laps <span class="hint" id="lapCount"></span></label>
     <div class="bar">
       <button class="primary" id="expSave">Save backup file</button>
       <button class="ghost" id="expShare" hidden>Share…</button>
       <button class="plain" id="expCopy">Copy as text</button>
     </div>
     <p class="hint" id="expMsg"></p>
+    <p class="hint" id="storeMsg"></p>
     <textarea id="expText" rows="5" readonly hidden aria-label="Backup text" style="width:100%;font:12px var(--mono)"></textarea>
 
     <h2 style="margin-top:10px;border-top:1px solid var(--line);padding-top:16px">Import</h2>
@@ -219,7 +222,7 @@ function renderClasses(){
 function renderStudents(){
   const list=D.classes[cls].students||[];
   $('count').textContent=list.length+' student'+(list.length===1?'':'s');
-  $('students').innerHTML=list.length?list.map((n,i)=>`<div class="st" data-i="${i}"><span class="n">${i+1}</span><button type="button" class="nm">${esc(n)}</button><button type="button" class="x" aria-label="Remove ${esc(n)}">Remove</button></div>`).join('')
+  $('students').innerHTML=list.length?list.map((st,i)=>`<div class="st" data-id="${esc(st.id)}"><span class="n">${i+1}</span><button type="button" class="nm">${esc(st.name)}</button><button type="button" class="x" aria-label="Remove ${esc(st.name)}">Remove</button></div>`).join('')
     :'<div class="empty">No students yet. Add them one at a time above, or paste a list.</div>';
 }
 $('clsPills').addEventListener('click',e=>{
@@ -246,62 +249,50 @@ $('delClsYes').addEventListener('click',()=>{
   commit(); cls=Object.keys(D.classes)[0]||null; renderClasses();
 });
 
-// students
-function addStudents(names){
+// students: each has a permanent id, so names can be changed freely
+const findStu=id=>(D.classes[cls].students||[]).find(x=>x.id===id);
+function note(msg){$('stuNote').textContent=msg; $('stuNote').hidden=!msg;}
+function addStudents(names,fromPaste){
   fresh(); const list=D.classes[cls].students=D.classes[cls].students||[];
-  const have=new Set(list.map(n=>n.toLowerCase())); let added=0;
-  names.map(n=>n.trim()).filter(Boolean).forEach(n=>{if(!have.has(n.toLowerCase())){list.push(n);have.add(n.toLowerCase());added++;}});
-  if(added) commit(); renderStudents(); return added;
+  const have=new Set(list.map(x=>x.name.toLowerCase())); let added=0, dup=[];
+  names.map(n=>n.trim()).filter(Boolean).forEach(n=>{
+    if(have.has(n.toLowerCase())){ if(fromPaste){dup.push(n);return;} dup.push(n); }
+    list.push({id:Classroom.newStudentId(),name:n}); have.add(n.toLowerCase()); added++;});
+  if(added) commit(); renderStudents();
+  note(fromPaste&&dup.length?`Skipped ${dup.length} already on the roster: ${dup.join(', ')}.`
+    :!fromPaste&&dup.length?`There's already a student named ${dup[0]}. Both are kept; tap one to add a last initial so you can tell them apart.`:'');
+  return added;
 }
-function addOne(){const v=$('newStu').value; if(!v.trim()) return; addStudents([v]); $('newStu').value=''; $('newStu').focus();}
+function addOne(){const v=$('newStu').value; if(!v.trim()) return; addStudents([v],false); $('newStu').value=''; $('newStu').focus();}
 $('addStu').addEventListener('click',addOne);
 $('newStu').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addOne();}});
 $('pasteToggle').addEventListener('click',()=>{$('pasteBox').hidden=false;$('paste').focus();});
 $('pasteCancel').addEventListener('click',()=>{$('pasteBox').hidden=true;$('paste').value='';});
-$('pasteAdd').addEventListener('click',()=>{addStudents($('paste').value.split('\n')); $('paste').value=''; $('pasteBox').hidden=true;});
+$('pasteAdd').addEventListener('click',()=>{addStudents($('paste').value.split('\n'),true); $('paste').value=''; $('pasteBox').hidden=true;});
 function sortBy(last){
-  fresh(); const key=n=>{const w=n.trim().split(/\s+/);return last&&w.length>1?w[w.length-1]+' '+w.slice(0,-1).join(' '):n};
+  fresh(); const key=x=>{const w=x.name.trim().split(/\s+/);return last&&w.length>1?w[w.length-1]+' '+w.slice(0,-1).join(' '):x.name};
   D.classes[cls].students.sort((a,b)=>key(a).localeCompare(key(b),undefined,{sensitivity:'base'})); commit(); renderStudents();
 }
 $('sortFirst').addEventListener('click',()=>sortBy(false));
 $('sortLast').addEventListener('click',()=>sortBy(true));
-
-// rename keeps seats and past marks: update every chart and saved lap for this class
-function renameStudent(oldN,newN){
-  fresh(); const list=D.classes[cls].students; const i=list.indexOf(oldN); if(i<0) return;
-  if(list.some(n=>n.toLowerCase()===newN.toLowerCase()&&n!==oldN)) return false;
-  list[i]=newN;
-  Object.keys(D.charts).forEach(k=>{if(k.startsWith(cls+'|')){const ch=D.charts[k]; Object.keys(ch).forEach(s=>{if(ch[s]===oldN) ch[s]=newN;});}});
-  commit();
-  try{
-    const pre='lapTracker.v3:'+cls+'|', oldK='S:'+oldN, newK='S:'+newN, keys=[];
-    for(let j=0;j<localStorage.length;j++){const k=localStorage.key(j); if(k&&k.startsWith(pre)) keys.push(k);}
-    keys.forEach(k=>{const s=JSON.parse(localStorage.getItem(k)); if(!s) return;
-      const mv=o=>{if(o&&o[oldK]!==undefined){o[newK]=o[oldK];delete o[oldK];}};
-      (s.laps||[]).forEach(l=>mv(l.marks)); mv(s.off); mv(s.over);
-      if(s.over) Object.keys(s.over).forEach(x=>{if(s.over[x]===oldN) s.over[x]=newN;});
-      localStorage.setItem(k,JSON.stringify(s));});
-  }catch(e){}
-  return true;
-}
-function removeStudent(n){
-  fresh(); D.classes[cls].students=D.classes[cls].students.filter(x=>x!==n);
-  Object.keys(D.charts).forEach(k=>{if(k.startsWith(cls+'|')){const ch=D.charts[k]; Object.keys(ch).forEach(s=>{if(ch[s]===n) delete ch[s];});}});
+function removeStudent(id){
+  fresh(); D.classes[cls].students=D.classes[cls].students.filter(x=>x.id!==id);
+  Object.keys(D.charts).forEach(k=>{if(k.startsWith(cls+'|')){const ch=D.charts[k]; Object.keys(ch).forEach(s=>{if(ch[s]===id) delete ch[s];});}});
   commit(); renderStudents();
 }
 $('students').addEventListener('click',e=>{
-  const row=e.target.closest('.st'); if(!row) return; const n=D.classes[cls].students[+row.dataset.i];
+  const row=e.target.closest('.st'); if(!row) return; const id=row.dataset.id, stu=findStu(id); if(!stu) return;
   if(e.target.closest('.x')){
     const x=e.target.closest('.x');
-    if(x.classList.contains('sure')) removeStudent(n);
+    if(x.classList.contains('sure')) removeStudent(id);
     else{x.classList.add('sure'); x.textContent='Tap to remove'; setTimeout(()=>{if(x.isConnected){x.classList.remove('sure');x.textContent='Remove';}},3000);}
     return;
   }
   if(e.target.closest('.nm')){
-    const inp=document.createElement('input'); inp.type='text'; inp.value=n; inp.enterKeyHint='done'; inp.setAttribute('aria-label','Rename '+n);
+    const inp=document.createElement('input'); inp.type='text'; inp.value=stu.name; inp.enterKeyHint='done'; inp.setAttribute('aria-label','Rename '+stu.name);
     const nm=row.querySelector('.nm'); nm.replaceWith(inp); inp.focus(); inp.select();
-    const done=()=>{const v=inp.value.trim(); if(v&&v!==n) renameStudent(n,v); renderStudents();};
-    inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();inp.blur();} if(ev.key==='Escape'){inp.value=n;inp.blur();}});
+    const done=()=>{const v=inp.value.trim(); fresh(); const s2=findStu(id); if(s2&&v&&v!==s2.name){s2.name=v; commit();} renderStudents();};
+    inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();inp.blur();} if(ev.key==='Escape'){inp.value=stu.name;inp.blur();}});
     inp.addEventListener('blur',done,{once:true});
   }
 });
@@ -325,16 +316,16 @@ function buildChart(){
   paint();
 }
 function paint(){
-  const ch=chart(), roster=D.classes[seatCls].students||[];
+  const ch=chart(), roster=D.classes[seatCls].students||[], nm=id=>Classroom.nameOf(D,seatCls,id);
   const where={}; cells.forEach(({seat})=>{if(ch[seat.id]) where[ch[seat.id]]=seat;});
-  cells.forEach(({seat,el})=>{const nm=ch[seat.id]||'';
-    el.querySelector('.name').textContent=nm||'—'; el.dataset.empty=nm?0:1; el.classList.toggle('sel',seat.id===sel);});
-  const s=sel&&cells.find(c=>c.seat.id===sel), who=s?ch[sel]:'';
+  cells.forEach(({seat,el})=>{const n=nm(ch[seat.id]);
+    el.querySelector('.name').textContent=n||'—'; el.dataset.empty=n?0:1; el.classList.toggle('sel',seat.id===sel);});
+  const s=sel&&cells.find(c=>c.seat.id===sel), who=s?nm(ch[sel]):'';
   $('selabel').textContent=s?('Seat '+s.seat.label+(who?' · '+who:' · empty')):'Tap a seat, then a student';
   $('emptySeat').disabled=!who;
-  const btn=n=>{const w=where[n], here=w&&w.id===sel;
-    return `<button type="button" data-n="${esc(n)}" class="${here?'here':w?'seated':''}" ${s?'':'disabled'}>${esc(n)}${w&&!here?' <small>'+esc(w.label)+'</small>':''}</button>`;};
-  const free=roster.filter(n=>!where[n]), taken=roster.filter(n=>where[n]);
+  const btn=st=>{const w=where[st.id], here=w&&w.id===sel;
+    return `<button type="button" data-n="${esc(st.id)}" class="${here?'here':w?'seated':''}" ${s?'':'disabled'}>${esc(st.name)}${w&&!here?' <small>'+esc(w.label)+'</small>':''}</button>`;};
+  const free=roster.filter(x=>!where[x.id]), taken=roster.filter(x=>where[x.id]);
   $('pick').innerHTML=(roster.length?'':'<span class="hint">Add students to this class on the Classes tab first.</span>')
     +(free.length?'<h4>Not seated</h4>'+free.map(btn).join(''):'')
     +(taken.length?'<h4>Seated · tap to move here</h4>'+taken.map(btn).join(''):'');
@@ -394,12 +385,18 @@ $('addRoom').addEventListener('click',()=>{fresh(); const id=newId('r'); D.rooms
 // -------- backup
 const UNDO_KEY='classroom.undo';
 const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());};
-function backupText(){fresh(); return JSON.stringify(SetupBackup.exportDoc(D,(window.APP_VERSION||{}).n),null,2);}
+// every saved lap day on this tablet, keyed 'class|room|YYYY-MM-DD'
+function allLaps(){const out={}, pre=Classroom.LAPS;
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(k&&k.startsWith(pre)){const v=JSON.parse(localStorage.getItem(k)); if(v) out[k.slice(pre.length)]=v;}}}catch(e){}
+  return out;}
+function backupText(){fresh(); return JSON.stringify(SetupBackup.exportDoc(D,(window.APP_VERSION||{}).n,$('expLaps').checked?allLaps():null),null,2);}
 const backupFile=()=>new File([backupText()],'classroom-setup-'+stamp()+'.json',{type:'application/json'});
 function renderBackup(){
   try{$('expShare').hidden=!(navigator.canShare&&navigator.canShare({files:[backupFile()]}));}catch(e){$('expShare').hidden=true;}
   const n=Object.keys(D.classes).length, s=Object.values(D.classes).reduce((a,c)=>a+(c.students||[]).length,0), r=Object.keys(D.rooms).length, ch=Object.keys(D.charts).length;
   $('expMsg').textContent=`${n} class${n===1?'':'es'}, ${s} students, ${r} room${r===1?'':'s'}, ${ch} seating chart${ch===1?'':'s'}.`;
+  const ld=Object.keys(allLaps()).length; $('lapCount').textContent=`(${ld} day${ld===1?'':'s'})`;
+  Classroom.protectStorage().then(v=>{$('storeMsg').textContent=v==='protected'?'This tablet keeps your data even when space runs low.':v==='not-protected'?"Chrome hasn't agreed to protect this data yet. Install the app to the home screen, and export a backup now and then.":'';});
   showUndo();
 }
 $('expSave').addEventListener('click',()=>{
@@ -422,7 +419,7 @@ function checkBackup(text){
   parsed=r; impMode='merge'; $('impPaste').hidden=true; renderPreview();
 }
 function renderPreview(){
-  fresh(); const pl=SetupBackup.plan(D,parsed.data,impMode);
+  fresh(); const pl=SetupBackup.plan(D,parsed.data,impMode,parsed.laps,allLaps());
   const m=parsed.meta, when=m.exported?new Date(m.exported).toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'an unknown date';
   $('impMeta').textContent='Backup from '+when+(m.build?' (version '+m.build+')':'')+'.';
   document.querySelectorAll('#impMode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===impMode));
@@ -445,8 +442,11 @@ $('impMode').addEventListener('click',e=>{const b=e.target.closest('button[data-
 $('impCancel').addEventListener('click',resetImport);
 $('impApply').addEventListener('click',()=>{
   if(!parsed) return; fresh();
-  const pl=SetupBackup.plan(D,parsed.data,impMode);
-  try{localStorage.setItem(UNDO_KEY,JSON.stringify({at:Date.now(),mode:impMode,data:D}));}catch(e){}
+  const pl=SetupBackup.plan(D,parsed.data,impMode,parsed.laps,allLaps());
+  // remember exactly what this import touches, so Undo can put it back
+  const prevLaps={}; Object.keys(pl.lapWrites).forEach(k=>{prevLaps[k]=localStorage.getItem(Classroom.LAPS+k);});
+  try{localStorage.setItem(UNDO_KEY,JSON.stringify({at:Date.now(),mode:impMode,data:D,laps:prevLaps}));}catch(e){}
+  Object.keys(pl.lapWrites).forEach(k=>{try{localStorage.setItem(Classroom.LAPS+k,JSON.stringify(pl.lapWrites[k]));}catch(e){}});
   const next=Object.assign({},D,pl.result); D=next; commit();
   resetImport(); $('impText').value=''; renderBackup();
   $('expMsg').textContent='Import finished.';
@@ -458,7 +458,9 @@ function showUndo(){
 }
 $('undoBtn').addEventListener('click',()=>{
   let u=null; try{u=JSON.parse(localStorage.getItem(UNDO_KEY));}catch(e){} if(!u||!u.data) return;
-  D=u.data; commit(); try{localStorage.removeItem(UNDO_KEY);}catch(e){} renderBackup(); $('expMsg').textContent='Import undone.';
+  D=u.data; commit();
+  Object.keys(u.laps||{}).forEach(k=>{try{const v=u.laps[k]; if(v===null) localStorage.removeItem(Classroom.LAPS+k); else localStorage.setItem(Classroom.LAPS+k,v);}catch(e){}});
+  try{localStorage.removeItem(UNDO_KEY);}catch(e){} renderBackup(); $('expMsg').textContent='Import undone.';
 });
 
 let t0='classes'; try{t0=sessionStorage.getItem('setupTab')||'classes'}catch(e){} if(!$('tab-'+t0)) t0='classes';
