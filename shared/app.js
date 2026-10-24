@@ -13,6 +13,14 @@
     try{const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update();}catch(e){}
     location.reload();
   });
+  // show any script error on screen, so problems on the tablet can be reported
+  const showErr=msg=>{let b=document.getElementById('apperr');
+    if(!b){b=document.createElement('div');b.id='apperr';
+      b.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:99;background:#b3322e;color:#fff;padding:10px 12px;border-radius:12px;font:14px system-ui,sans-serif';
+      b.addEventListener('click',()=>b.remove()); document.body.appendChild(b);}
+    b.textContent='Something went wrong: '+msg+' (version '+v.n+'). Tap to dismiss.';};
+  addEventListener('error',e=>showErr(e.message||'unknown error'));
+  addEventListener('unhandledrejection',e=>showErr((e.reason&&(e.reason.message||e.reason.name))||'unknown error'));
   // ask Chrome not to clear this app's data when space runs low
   if(window.Classroom&&Classroom.protectStorage) Classroom.protectStorage();
   if('serviceWorker' in navigator){

@@ -391,8 +391,10 @@ function allLaps(){const out={}, pre=Classroom.LAPS;
   return out;}
 function backupText(){fresh(); return JSON.stringify(SetupBackup.exportDoc(D,(window.APP_VERSION||{}).n,$('expLaps').checked?allLaps():null),null,2);}
 const backupFile=()=>new File([backupText()],'classroom-setup-'+stamp()+'.json',{type:'application/json'});
+// Android only shares certain file types, and .json isn't one of them, so share a .txt copy (import reads either)
+const shareFile=()=>new File([backupText()],'classroom-setup-'+stamp()+'.txt',{type:'text/plain'});
 function renderBackup(){
-  try{$('expShare').hidden=!(navigator.canShare&&navigator.canShare({files:[backupFile()]}));}catch(e){$('expShare').hidden=true;}
+  try{$('expShare').hidden=!(navigator.canShare&&navigator.canShare({files:[shareFile()]}));}catch(e){$('expShare').hidden=true;}
   const n=Object.keys(D.classes).length, s=Object.values(D.classes).reduce((a,c)=>a+(c.students||[]).length,0), r=Object.keys(D.rooms).length, ch=Object.keys(D.charts).length;
   $('expMsg').textContent=`${n} class${n===1?'':'es'}, ${s} students, ${r} room${r===1?'':'s'}, ${ch} seating chart${ch===1?'':'s'}.`;
   const ld=Object.keys(allLaps()).length; $('lapCount').textContent=`(${ld} day${ld===1?'':'s'})`;
@@ -402,9 +404,16 @@ function renderBackup(){
 $('expSave').addEventListener('click',()=>{
   const f=backupFile(), url=URL.createObjectURL(f), a=document.createElement('a');
   a.href=url; a.download=f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000);
-  $('expMsg').textContent='Saved '+f.name+' to your Downloads.';
+  $('expMsg').textContent='Saving '+f.name+' to your Downloads. Look for the download notice at the top of the screen.';
 });
-$('expShare').addEventListener('click',async()=>{try{await navigator.share({files:[backupFile()],title:'Classroom setup backup'});}catch(e){}});
+$('expShare').addEventListener('click',async()=>{
+  const f=shareFile();
+  try{await navigator.share({files:[f],title:'Classroom setup backup'}); $('expMsg').textContent='Shared '+f.name+'.';}
+  catch(e){
+    if(e&&e.name==='AbortError'){$('expMsg').textContent='Share cancelled.';return;}
+    $('expMsg').textContent="Sharing didn't work here ("+(e&&e.name||'unknown error')+"). Use Save backup file, then upload it from the Drive app.";
+  }
+});
 $('expCopy').addEventListener('click',()=>{
   const t=$('expText'); t.value=backupText();
   const ok=()=>{$('expMsg').textContent='Copied. Paste it into a note or email to keep it.'; t.hidden=true;};
