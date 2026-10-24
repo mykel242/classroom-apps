@@ -183,7 +183,8 @@ $('cno').addEventListener('click',()=>$('clearconfirm').hidden=true);
 $('cyes').addEventListener('click',()=>{D=Classroom.load();delete D.charts[scls+'|'+sroom];Classroom.save(D);$('clearconfirm').hidden=true;buildChart();});
 
 showRoster(); showRooms(); fillSeatPickers(); buildChart();
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
+<script src="../shared/version.js"></script>
+<script src="../shared/app.js"></script>
 </body>
 </html>

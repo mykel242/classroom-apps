@@ -321,7 +321,8 @@ async function wake(){try{if(navigator.wakeLock&&document.visibilityState==='vis
 document.addEventListener('visibilitychange',wake); wake();
 
 fillPickers(); savePrefs(); build();
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
+<script src="../shared/version.js"></script>
+<script src="../shared/app.js"></script>
 </body>
 </html>
