@@ -66,7 +66,7 @@ main{gap:10px;padding-top:0}
 .sumlist{display:flex;flex-direction:column;gap:6px;padding:0 6px}
 .note{border-radius:12px;padding:10px 12px;background:var(--sunk);font-size:15px}
 .note.bad{border:1.5px solid var(--not);background:transparent;color:var(--not);font-weight:600}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:40;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font:600 15px var(--sans)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(16px + env(safe-area-inset-top,0px));z-index:40;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font:600 15px var(--sans)}
 .sticky-actions{position:sticky;bottom:0;background:var(--card);padding:10px 6px 2px;display:flex;gap:10px}
 .sticky-actions button{flex:1}
 </style>
@@ -126,22 +126,37 @@ const classGoals=()=>Object.values(G.goals).filter(g=>g.cls===cls);
 const activeGoals=()=>classGoals().filter(g=>!g.archived);
 const logsFor=(gid,sid)=>G.logs.filter(l=>l.goal===gid&&l.sid===sid).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.t-b.t);
 
-// next check: last log + cadence, moved off weekends; first check is the start date
+// each student on a goal can have their own frequency, trials, dates and status; blanks fall back to the goal
+const per=(g,sid)=>(g.per&&g.per[sid])||{};
+function eff(g,sid){const o=per(g,sid);
+  return {cadence:o.cadence||g.cadence, defTotal:o.defTotal||g.defTotal||5, start:o.start||g.start||'', end:o.end||g.end||'',
+    status:o.status||'active', metDate:o.metDate||'', custom:!!(o.cadence||o.defTotal||o.start||o.end)};}
+// next check: last log + frequency, moved off weekends; first check is the start date
 function nextDue(g,sid){
-  const ls=logsFor(g.id,sid), last=ls.length?ls[ls.length-1].date:null;
-  let d=last?addDays(last,cadDays(g.cadence)):(g.start||today());
+  const e=eff(g,sid), ls=logsFor(g.id,sid), last=ls.length?ls[ls.length-1].date:null;
+  let d=last?addDays(last,cadDays(e.cadence)):(e.start||today());
   const wd=parseDay(d).getDay(); if(wd===6) d=addDays(d,2); else if(wd===0) d=addDays(d,1);
   return {date:d,last};
 }
 function status(g,sid){
-  if(g.end&&today()>g.end) return {cls:'',txt:'Ended '+short(g.end),due:false};
-  if(g.start&&today()<g.start) return {cls:'',txt:'Starts '+short(g.start),due:false};
+  const e=eff(g,sid);
+  if(e.status==='met') return {cls:'ok',txt:'Met'+(e.metDate?' '+short(e.metDate):''),due:false,done:true};
+  if(e.status==='paused') return {cls:'',txt:'Paused',due:false,done:true};
+  if(e.end&&today()>e.end) return {cls:'',txt:'Ended '+short(e.end),due:false};
+  if(e.start&&today()<e.start) return {cls:'',txt:'Starts '+short(e.start),due:false};
   const n=nextDue(g,sid), diff=daysBetween(n.date,today());
   if(!n.last) return {cls:'due',txt:'Not logged yet',due:true,od:diff};
   if(diff>0) return {cls:'over',txt:diff+' day'+(diff>1?'s':'')+' overdue',due:true,od:diff};
   if(diff===0) return {cls:'due',txt:'Due today',due:true,od:0};
   return {cls:'ok',txt:'Next '+short(n.date),due:false};
 }
+// attempts so far: "14 checks since Sep 30"
+function attempts(g,sid){const ls=logsFor(g.id,sid); if(!ls.length) return '';
+  const n=g.kind==='trials'?ls.filter(l=>l.kind==='trials').reduce((a,l)=>a+l.total,0):0;
+  return ls.length+' check'+(ls.length===1?'':'s')+(n?' ('+n+' trials)':'')+' since '+short(ls[0].date);}
+// where a check happened
+const WHERE_FIXED=['Small group','Pull-out','1:1'];
+const whereOptions=()=>[...Object.values(D.rooms).map(r=>r.name),...WHERE_FIXED];
 function resText(l){
   if(l.kind==='trials') return l.correct+'/'+l.total;
   if(l.kind==='yesno') return l.yes===true?'✓':l.yes===false?'✗':'·';
@@ -207,8 +222,8 @@ function renderDue(){
 function renderStudents(){
   const r=roster(); if(!r.length){$('view').innerHTML=`<div class="empty">This class has no students. Add them in Classroom setup.</div>`;return;}
   $('view').innerHTML=r.map(s=>{const gs=activeGoals().filter(g=>g.students.includes(s.id));
-    const due=gs.filter(g=>status(g,s.id).due).length;
-    return `<button type="button" class="rowbtn" data-s="${esc(s.id)}"><span class="grow"><b>${esc(s.name)}</b></span><span class="meta">${gs.length} goal${gs.length===1?'':'s'}</span>${due?`<span class="tag due">${due} due</span>`:''}</button>`;}).join('');
+    const due=gs.filter(g=>status(g,s.id).due).length, met=gs.filter(g=>eff(g,s.id).status==='met').length;
+    return `<button type="button" class="rowbtn" data-s="${esc(s.id)}"><span class="grow"><b>${esc(s.name)}</b></span><span class="meta">${gs.length} goal${gs.length===1?'':'s'}${met?' · '+met+' met':''}</span>${due?`<span class="tag due">${due} due</span>`:''}</button>`;}).join('');
   $('view').onclick=e=>{const b=e.target.closest('[data-s]');if(b)studentView(b.dataset.s);};
 }
 
@@ -219,12 +234,13 @@ function studentView(sid){
       ${others.map(g=>`<button type="button" class="rowbtn" data-join="${esc(g.id)}"><span class="grow"><b>${esc(g.title)}</b><br><span class="meta">${esc(KIND[g.kind])} · ${esc(cadName(g.cadence))} · ${g.students.length} student${g.students.length===1?'':'s'}</span></span><span class="tag">+ Add</span></button>`).join('')}</div>`:'';
   $('view').innerHTML=`<div class="bar"><button class="plain" id="backS" style="padding:0">‹ Students</button></div>
     <div class="bar"><h2 class="grow">${nm}</h2>${gs.length?'<button class="primary" id="newFor">+ New goal</button>':''}</div>`+
-    (gs.length?gs.map(g=>{const st=status(g,sid),pc=recentPct(g,sid);
+    (gs.length?gs.slice().sort((a,b)=>(status(a,sid).done?1:0)-(status(b,sid).done?1:0)).map(g=>{const st=status(g,sid),pc=recentPct(g,sid),e=eff(g,sid),at=attempts(g,sid);
       return `<div class="card"><div class="bar"><h3 class="grow">${esc(g.title)}</h3><span class="tag ${st.cls}">${esc(st.txt)}</span></div>
         ${g.criteria?`<div class="crit">${esc(g.criteria)}</div>`:''}
-        <div class="meta"><span>${esc(KIND[g.kind])}</span>·<span>${esc(cadName(g.cadence))}</span>${g.students.length>1?'·<span>Shared</span>':''}${pc?'·<span>'+esc(pc)+'</span>':''}</div>
+        <div class="meta"><span>${esc(KIND[g.kind])}</span>·<span>${esc(cadName(e.cadence))}${g.kind==='trials'?', '+e.defTotal+' trials':''}${e.custom?' <b style="color:var(--accent)">(just for '+nm+')</b>':''}</span>${g.students.length>1?'·<span>Shared</span>':''}</div>
+        ${(at||pc)?`<div class="meta">${at?'<span>'+esc(at)+'</span>':''}${at&&pc?'·':''}${pc?'<span>'+esc(pc)+'</span>':''}</div>`:''}
         ${recentChips(g,sid,10)}
-        <div class="bar"><button class="primary" data-log="${esc(g.id)}">Log</button><button class="ghost" data-hist="${esc(g.id)}">History</button><span class="grow"></span><button class="plain" data-edit="${esc(g.id)}">Edit goal</button></div></div>`;}).join('')+(others.length?`<details class="card"><summary style="font-weight:700;cursor:pointer">Add ${nm} to another goal (${others.length})</summary>${addExisting.replace(/^<div class="card"><h3>[^<]*<\/h3>/,'').replace(/<\/div>$/,'')}</details>`:'')
+        <div class="bar">${st.done?'':`<button class="primary" data-log="${esc(g.id)}">Log</button>`}<button class="ghost" data-hist="${esc(g.id)}">History</button><button class="ghost" data-per="${esc(g.id)}">${st.done?'Reopen…':'Settings & status'}</button><span class="grow"></span><button class="plain" data-edit="${esc(g.id)}">Edit goal</button></div></div>`;}).join('')+(others.length?`<details class="card"><summary style="font-weight:700;cursor:pointer">Add ${nm} to another goal (${others.length})</summary>${addExisting.replace(/^<div class="card"><h3>[^<]*<\/h3>/,'').replace(/<\/div>$/,'')}</details>`:'')
       :`<div class="card" style="align-items:center;text-align:center;padding:24px 14px">
           <h3>No goals for ${nm} yet</h3>
           <button class="primary" id="newFor2">+ New goal for ${nm}</button>
@@ -233,7 +249,8 @@ function studentView(sid){
   $('backS').addEventListener('click',renderStudents);
   if($('newFor')) $('newFor').addEventListener('click',()=>editGoal(null,[sid],fresh));
   if($('newFor2')) $('newFor2').addEventListener('click',()=>editGoal(null,[sid],fresh));
-  $('view').onclick=e=>{const l=e.target.closest('[data-log]'),h=e.target.closest('[data-hist]'),j=e.target.closest('[data-join]'),ed=e.target.closest('[data-edit]');
+  $('view').onclick=e=>{const l=e.target.closest('[data-log]'),h=e.target.closest('[data-hist]'),j=e.target.closest('[data-join]'),ed=e.target.closest('[data-edit]'),pr=e.target.closest('[data-per]');
+    if(pr) perSheet(G.goals[pr.dataset.per],sid,fresh);
     if(l) logSheet(G.goals[l.dataset.log],[sid],fresh);
     if(h) historySheet(G.goals[h.dataset.hist],sid,fresh);
     if(ed) editGoal(G.goals[ed.dataset.edit],null,fresh);
@@ -244,10 +261,10 @@ function renderGoals(){
   const gs=classGoals().filter(g=>showArchived?g.archived:!g.archived).sort((a,b)=>a.title.localeCompare(b.title));
   const nArch=classGoals().filter(g=>g.archived).length;
   $('view').innerHTML=`<div class="bar"><button class="primary" id="newGoal">+ New goal</button><span class="grow"></span>${nArch||showArchived?`<button class="plain" id="arch">${showArchived?'Show active':'Archived ('+nArch+')'}</button>`:''}</div>`+
-    (gs.length?gs.map(g=>{const due=g.students.filter(s=>status(g,s).due).length;
+    (gs.length?gs.map(g=>{const due=g.students.filter(s=>status(g,s).due).length, met=g.students.filter(s=>eff(g,s).status==='met').length;
       return `<button type="button" class="rowbtn" data-g="${esc(g.id)}" style="flex-direction:column;align-items:stretch;gap:4px;padding:10px 12px">
         <span class="bar"><b class="grow">${esc(g.title)}</b>${due&&!g.archived?`<span class="tag due">${due} due</span>`:''}</span>
-        <span class="meta"><span>${esc(KIND[g.kind])}</span>·<span>${esc(cadName(g.cadence))}</span>·<span>${g.students.map(s=>esc(sname(s))).join(', ')||'No students'}</span></span></button>`;}).join('')
+        <span class="meta"><span>${esc(KIND[g.kind])}</span>·<span>${esc(cadName(g.cadence))}</span>·<span>${g.students.map(s=>esc(sname(s))+(eff(g,s).status==='met'?' ✓':eff(g,s).status==='paused'?' (paused)':'')).join(', ')||'No students'}</span>${met?'·<span>'+met+' of '+g.students.length+' met</span>':''}</span></button>`;}).join('')
       :`<div class="empty">${showArchived?'No archived goals.':'No goals yet.'}</div>`);
   $('newGoal').addEventListener('click',()=>editGoal(null));
   if($('arch')) $('arch').addEventListener('click',()=>{showArchived=!showArchived;renderGoals();});
@@ -289,8 +306,8 @@ function editGoal(g,preSids,after){
     <div class="field"><label for="gTitle">Goal</label><input id="gTitle" type="text" value="${esc(d.title)}" placeholder="Short name for the goal" enterkeyhint="next"></div>
     <div class="field"><label for="gCrit">Criteria</label><textarea id="gCrit" placeholder="How you'll know it's met">${esc(d.criteria)}</textarea></div>
     <div class="field"><span class="lbl">Log as</span><div class="seg" id="gKind">${Object.keys(KIND).map(k=>`<button type="button" data-k="${k}" aria-pressed="${d.kind===k}">${KIND[k]}</button>`).join('')}</div></div>
-    <div class="field" id="gTotWrap"><label for="gTot">Usual number of trials</label><input id="gTot" type="number" min="1" max="50" value="${d.defTotal||5}" style="width:100px"></div>
-    <div class="field"><label for="gCad">Check</label><select id="gCad">${CADENCE.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('')}</select></div>
+    <div class="field" id="gTotWrap"><label for="gTot">Usual number of trials <span style="font-weight:400">(each student can differ)</span></label><input id="gTot" type="number" min="1" max="50" value="${d.defTotal||5}" style="width:100px"></div>
+    <div class="field"><label for="gCad">Check <span style="font-weight:400">(each student can differ)</span></label><select id="gCad">${CADENCE.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('')}</select></div>
     <div class="field"><span class="lbl">Dates</span><div class="bar"><input id="gStart" type="date" value="${esc(d.start||'')}" aria-label="Start date"><span class="hint">to</span><input id="gEnd" type="date" value="${esc(d.end||'')}" aria-label="End date (optional)"></div></div>
     <div class="field"><span class="lbl">Students${Object.values(G.groups).some(x=>x.cls===cls)?' · dashed buttons add a whole group':''}</span>${pickerHTML(sel,true)}</div>
     <div id="gErr" class="note bad" hidden style="margin:0 6px"></div>
@@ -344,13 +361,48 @@ function editGroup(g){
   });
 }
 
+// ---------- one student's settings and status on a goal
+function perSheet(g,sid,after){
+  const o=Object.assign({},per(g,sid)), nm=esc(sname(sid)), st=o.status||'active';
+  openSheet(`<h2>${nm}</h2><div class="hint" style="padding:0 6px">${esc(g.title)}</div>
+    <div class="field"><span class="lbl">Status</span><div class="seg" id="pStat">
+      <button type="button" data-v="active" aria-pressed="${st==='active'}">Active</button>
+      <button type="button" data-v="met" aria-pressed="${st==='met'}">Met</button>
+      <button type="button" data-v="paused" aria-pressed="${st==='paused'}">Paused</button></div></div>
+    <div class="field" id="pMetW"><label for="pMet">Met on</label><input id="pMet" type="date" value="${esc(o.metDate||today())}" max="${today()}" style="width:180px"></div>
+    <p class="hint" style="padding:0 6px">Met and Paused take ${nm} off the Due list. History is kept, and you can set Active again any time.</p>
+    <div class="field"><label for="pCad">Check for ${nm}</label><select id="pCad"><option value="">Same as goal (${esc(cadName(g.cadence))})</option>${CADENCE.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('')}</select></div>
+    ${g.kind==='trials'?`<div class="field"><label for="pTot">Trials for ${nm}</label><input id="pTot" type="number" min="1" max="50" value="${esc(o.defTotal||'')}" placeholder="Same as goal (${g.defTotal||5})" style="width:220px"></div>`:''}
+    <div class="field"><span class="lbl">Dates for ${nm} (blank = same as goal)</span><div class="bar"><input id="pStart" type="date" value="${esc(o.start||'')}" aria-label="Start date"><span class="hint">to</span><input id="pEnd" type="date" value="${esc(o.end||'')}" aria-label="End date"></div></div>
+    <div id="pErr" class="note bad" hidden style="margin:0 6px"></div>
+    <div class="sticky-actions"><button class="ghost" id="pCancel">Cancel</button><button class="primary" id="pSave">Save</button></div>`,
+  el=>{let stat=st;
+    const ui=()=>{el.querySelectorAll('#pStat button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===stat));el.querySelector('#pMetW').hidden=stat!=='met';};
+    ui(); el.querySelector('#pCad').value=o.cadence||'';
+    el.querySelector('#pStat').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){stat=b.dataset.v;ui();}});
+    el.querySelector('#pCancel').addEventListener('click',closeSheet);
+    el.querySelector('#pSave').addEventListener('click',()=>{
+      const n={}, cad=el.querySelector('#pCad').value, tot=el.querySelector('#pTot'), s0=el.querySelector('#pStart').value, e0=el.querySelector('#pEnd').value;
+      if(cad) n.cadence=cad;
+      if(tot&&tot.value) n.defTotal=Math.max(1,Math.min(50,+tot.value||1));
+      if(s0) n.start=s0; if(e0) n.end=e0;
+      if((s0||g.start)&&(e0)&&e0<(s0||g.start||'')){const x=el.querySelector('#pErr');x.textContent='The end date is before the start date.';x.hidden=false;return;}
+      if(stat!=='active') n.status=stat; if(stat==='met') n.metDate=el.querySelector('#pMet').value||today();
+      G=loadG(); const gg=G.goals[g.id]; gg.per=gg.per||{};
+      if(Object.keys(n).length) gg.per[sid]=n; else delete gg.per[sid];
+      gg.updated=Date.now(); saveG(); closeSheet(); toast(stat==='met'?'Marked met':stat==='paused'?'Paused':'Saved'); (after||render)();});
+  });
+}
+
 // ---------- logging: one row per student, all saved together
 function logSheet(g,sids,after){
-  const rows=sids.map(sid=>({sid,correct:null,total:g.defTotal||5,yes:null,note:''}));
+  const rows=sids.map(sid=>({sid,correct:null,total:eff(g,sid).defTotal,yes:null,note:''}));
+  let where=(P.where&&P.where[g.id])!==undefined?P.where[g.id]:(P.lastWhere||'');
   const grps=Object.values(G.groups).filter(x=>x.cls===cls&&x.students.some(s=>g.students.includes(s)));
   openSheet(`<h2>${esc(g.title)}</h2>
     ${g.criteria?`<div class="crit" style="margin:0 6px">${esc(g.criteria)}</div>`:''}
     <div class="field"><label for="lDate">Date</label><input id="lDate" type="date" value="${today()}" max="${today()}" style="width:180px"></div>
+    <div class="field"><span class="lbl">Where (optional)</span><div class="chips" id="lWhere"></div></div>
     <div id="lRows" style="display:flex;flex-direction:column;gap:8px;padding:0 6px"></div>
     ${g.students.length>sids.length?`<div class="chips" style="padding:0 6px" id="lAdd"><span class="lbl" style="flex-basis:100%">Add students to this log</span>
       ${grps.map(x=>`<button type="button" class="grp" data-grp="${esc(x.id)}">+ ${esc(x.name)}</button>`).join('')}
@@ -365,6 +417,14 @@ function logSheet(g,sids,after){
       return `<div class="logrow"><div class="top"><span class="nm">${esc(sname(r.sid))}</span>${body}</div>
         <input type="text" data-note="${i}" value="${esc(r.note)}" placeholder="Note (optional)" enterkeyhint="done"></div>`;}).join('');};
     draw();
+    const opts=whereOptions(); if(where&&!opts.includes(where)) opts.push(where);
+    const drawWhere=()=>{el.querySelector('#lWhere').innerHTML=opts.map(w=>`<button type="button" data-w="${esc(w)}" aria-pressed="${w===where}">${esc(w)}</button>`).join('')+`<button type="button" class="grp" data-w="__other">Other…</button>`;};
+    drawWhere();
+    el.querySelector('#lWhere').addEventListener('click',e=>{const b=e.target.closest('[data-w]');if(!b)return;
+      if(b.dataset.w==='__other'){const inp=document.createElement('input');inp.type='text';inp.placeholder='Where?';inp.enterKeyHint='done';inp.style.minWidth='160px';
+        b.replaceWith(inp);inp.focus();inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();inp.blur();}});
+        inp.addEventListener('blur',()=>{const v=inp.value.trim();if(v){if(!opts.includes(v))opts.push(v);where=v;}drawWhere();},{once:true});return;}
+      where=where===b.dataset.w?'':b.dataset.w; drawWhere();});
     el.querySelector('#lRows').addEventListener('click',e=>{
       const b=e.target.closest('button'); if(!b) return; const box=b.closest('[data-i]'); if(!box) return; const r=rows[+box.dataset.i];
       if(b.dataset.a){const a=b.dataset.a;
@@ -380,20 +440,20 @@ function logSheet(g,sids,after){
     const add=el.querySelector('#lAdd');
     if(add) add.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
       const more=b.dataset.grp?G.groups[b.dataset.grp].students.filter(s=>g.students.includes(s)):[b.dataset.sid];
-      more.forEach(s=>{if(!rows.some(r=>r.sid===s)) rows.push({sid:s,correct:null,total:g.defTotal||5,yes:null,note:''});});
+      more.forEach(s=>{if(!rows.some(r=>r.sid===s)&&!status(g,s).done) rows.push({sid:s,correct:null,total:eff(g,s).defTotal,yes:null,note:''});});
       add.querySelectorAll('[data-sid]').forEach(x=>{if(rows.some(r=>r.sid===x.dataset.sid)) x.remove();}); draw();});
     el.querySelector('#lCancel').addEventListener('click',closeSheet);
     el.querySelector('#lSave').addEventListener('click',()=>{
       const date=el.querySelector('#lDate').value||today(); let n=0;
       G=loadG();
       rows.forEach(r=>{
-        const note=r.note.trim(), base={id:uid('l'),goal:g.id,sid:r.sid,date,t:Date.now(),note};
+        const note=r.note.trim(), base={id:uid('l'),goal:g.id,sid:r.sid,date,t:Date.now(),note}; if(where) base.where=where;
         if(g.kind==='trials'&&r.correct!=null){G.logs.push(Object.assign(base,{kind:'trials',correct:r.correct,total:r.total}));n++;}
         else if(g.kind==='yesno'&&r.yes!=null){G.logs.push(Object.assign(base,{kind:'yesno',yes:r.yes}));n++;}
         else if(note){G.logs.push(Object.assign(base,{kind:'note'}));n++;}
       });
       if(!n){toast(g.kind==='note'?'Write a note for at least one student.':'Enter a result for at least one student.');return;}
-      saveG(); closeSheet(); toast('Logged '+n); (after||render)();
+      saveG(); P.lastWhere=where; P.where=P.where||{}; P.where[g.id]=where; savePrefs(); closeSheet(); toast('Logged '+n); (after||render)();
     });
   });
 }
@@ -401,7 +461,7 @@ function logSheet(g,sids,after){
 // ---------- history for one student on one goal
 function historySheet(g,sid,after){
   const draw=el=>{const ls=logsFor(g.id,sid).slice().reverse();
-    el.querySelector('#hList').innerHTML=ls.length?ls.map(l=>`<div class="h"><span class="d">${esc(short(l.date))}</span><span class="r">${esc(resText(l))}${l.kind==='trials'&&l.total?' <small>'+Math.round(100*l.correct/l.total)+'%</small>':''}</span><span class="t">${esc(l.note||'')}</span><button type="button" class="x" data-del="${esc(l.id)}">Delete</button></div>`).join('')
+    el.querySelector('#hList').innerHTML=ls.length?ls.map(l=>`<div class="h"><span class="d">${esc(short(l.date))}</span><span class="r">${esc(resText(l))}${l.kind==='trials'&&l.total?' <small>'+Math.round(100*l.correct/l.total)+'%</small>':''}</span><span class="t">${l.where?'<span class="tag" style="margin-right:6px">'+esc(l.where)+'</span>':''}${esc(l.note||'')}</span><button type="button" class="x" data-del="${esc(l.id)}">Delete</button></div>`).join('')
       :'<div class="empty">No entries yet.</div>';};
   openSheet(`<h2>${esc(sname(sid))}</h2><div class="hint" style="padding:0 6px">${esc(g.title)}</div>
     <div class="hist" id="hList" style="padding:0 6px"></div>

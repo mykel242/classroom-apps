@@ -52,6 +52,13 @@
         defTotal:Math.max(1,Math.min(50,Math.round(+g.defTotal)||5)),cadence:CADS.has(g.cadence)?g.cadence:'weekly',
         start:DAY.test(g.start||'')?g.start:'',end:DAY.test(g.end||'')?g.end:'',
         students:Array.isArray(g.students)?[...new Set(g.students.filter(s=>typeof s==='string'&&s))]:[],archived:!!g.archived,updated:+g.updated||0};
+      // per-student settings: keep only values that make sense
+      const pr={}; if(g.per&&typeof g.per==='object') Object.keys(g.per).forEach(sid=>{const o=g.per[sid]; if(!o||typeof o!=='object') return; const n={};
+        if(CADS.has(o.cadence)) n.cadence=o.cadence; if(Math.round(+o.defTotal)>0) n.defTotal=Math.min(50,Math.round(+o.defTotal));
+        if(DAY.test(o.start||'')) n.start=o.start; if(DAY.test(o.end||'')) n.end=o.end;
+        if(o.status==='met'||o.status==='paused') n.status=o.status; if(n.status==='met'&&DAY.test(o.metDate||'')) n.metDate=o.metDate;
+        if(Object.keys(n).length) pr[sid]=n;});
+      if(Object.keys(pr).length) goals[g.id].per=pr;
     });
     Object.values(raw.groups||{}).forEach(g=>{
       if(!g||typeof g!=='object'||!str(g.id)||!str(g.name)||!str(g.cls)){bad++;return;}
@@ -59,7 +66,7 @@
     });
     (Array.isArray(raw.logs)?raw.logs:[]).forEach(l=>{
       if(!l||typeof l!=='object'||!str(l.id)||!goals[l.goal]&&!G.goals[l.goal]||!str(l.sid)||!DAY.test(l.date||'')||!KINDS.has(l.kind)){bad++;return;}
-      const o={id:str(l.id),goal:str(l.goal),sid:str(l.sid),date:l.date,t:+l.t||0,kind:l.kind,note:str(l.note,1000)};
+      const o={id:str(l.id),goal:str(l.goal),sid:str(l.sid),date:l.date,t:+l.t||0,kind:l.kind,note:str(l.note,1000)}; if(str(l.where,80)) o.where=str(l.where,80);
       if(l.kind==='trials'){const tot=Math.round(+l.total),c=Math.round(+l.correct); if(!(tot>0&&c>=0&&c<=tot)){bad++;return;} o.total=tot;o.correct=c;}
       if(l.kind==='yesno'){if(typeof l.yes!=='boolean'){bad++;return;} o.yes=l.yes;}
       logs.push(o);
@@ -89,6 +96,7 @@
     let gNew=0,gUpd=0,gSame=0,pNew=0,pUpd=0,lNew=0,lSame=0;
     Object.values(f.goals).forEach(g=>{const to=cmap[g.cls]; if(!to) return;
       const n=Object.assign({},g,{cls:to,students:ms(g.cls,g.students)}), cur=res.goals[g.id];
+      if(g.per){n.per={}; Object.keys(g.per).forEach(s=>{n.per[(smap[g.cls]||{})[s]||s]=g.per[s];});}
       if(!cur){res.goals[g.id]=n;gNew++;}
       else if(JSON.stringify(cur)===JSON.stringify(n)) gSame++;
       else if((n.updated||0)>(cur.updated||0)){res.goals[g.id]=n;gUpd++;} else gSame++;});
@@ -144,12 +152,12 @@
   window.copyCsv=function(){
     G=loadG(); D=Classroom.load();
     const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-    const rows=[['date','class','student','goal','log type','result','correct','total','percent','met','note'].join(',')];
+    const rows=[['date','class','student','goal','log type','result','correct','total','percent','met','where','note'].join(',')];
     G.logs.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.t-b.t).forEach(l=>{const g=G.goals[l.goal]; if(!g) return;
       const c=D.classes[g.cls]||{}, nm=Classroom.nameOf(D,g.cls,l.sid)||'(removed student)';
       const res=l.kind==='trials'?l.correct+'/'+l.total:l.kind==='yesno'?(l.yes?'met':'not met'):'';
       rows.push([l.date,q(c.name||''),q(nm),q(g.title),l.kind,q(res),l.kind==='trials'?l.correct:'',l.kind==='trials'?l.total:'',
-        l.kind==='trials'&&l.total?Math.round(100*l.correct/l.total):'',l.kind==='yesno'?(l.yes?'yes':'no'):'',q(l.note||'')].join(','));});
+        l.kind==='trials'&&l.total?Math.round(100*l.correct/l.total):'',l.kind==='yesno'?(l.yes?'yes':'no'):'',q(l.where||''),q(l.note||'')].join(','));});
     const text=rows.join('\n');
     const done=()=>{closeSheet();toast('Copied '+(rows.length-1)+' entries. Paste into a Google Sheet.');};
     if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>showText(text)); else showText(text);
