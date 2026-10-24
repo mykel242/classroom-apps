@@ -41,7 +41,13 @@
 .chip .t2{font-size:13px;color:var(--muted);max-width:156px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip.on{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-3px}
 .editor{display:flex;flex-direction:column;gap:8px}
-.editor .bar button{flex:1}
+.editor .seg button{min-height:38px;font-size:14px}
+.pickgrid{display:flex;flex-wrap:wrap;gap:6px;max-height:260px;overflow:auto;align-content:flex-start}
+.pickgrid h4{flex-basis:100%;margin:4px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pickgrid button{min-height:46px;padding:0 14px;background:var(--card);border:1.5px solid var(--line);color:var(--fg)}
+.pickgrid button.seated{font-weight:500;color:var(--muted)}
+.pickgrid button.here{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
+.pickgrid button small{font:600 11px var(--mono);opacity:.8}
 #csv{width:100%;font:13px var(--mono)}
 #printout{display:none}
 @media print{
@@ -86,14 +92,18 @@
       <div class="chips" id="hist" aria-label="Laps" style="margin-top:8px"></div>
     </div>
     <div class="editor" id="editor" hidden>
-      <div id="edlabel" style="font-weight:700">Tap a seat to change who sits there</div>
-      <input id="edname" type="text" list="roster" autocomplete="off" enterkeyhint="done" placeholder="Student" aria-label="Student at this seat" disabled>
-      <datalist id="roster"></datalist>
       <div class="bar">
-        <button class="primary" id="edsave" disabled>Save to chart</button>
-        <button class="ghost" id="edtoday" disabled>Today only</button>
-        <button class="ghost" id="edclear" disabled>Undo today</button>
+        <span id="edlabel" class="grow" style="font-weight:700"></span>
+        <div class="seg" id="edmode" role="group" aria-label="Change applies">
+          <button type="button" data-m="chart" aria-pressed="true">Always</button>
+          <button type="button" data-m="today" aria-pressed="false">Today only</button>
+        </div>
       </div>
+      <div class="bar">
+        <button class="ghost" id="edempty" disabled>Empty this seat</button>
+        <button class="ghost" id="edundo" hidden>Undo today's change</button>
+      </div>
+      <div class="pickgrid" id="edpick" aria-label="Students"></div>
     </div>
   </div>
 </div>
@@ -185,7 +195,6 @@ function build(){
   $('board').hidden=isList();
   $('mEdit').hidden=isList();
   if(isList()&&editing) toggleEdit(false);
-  $('roster').innerHTML=((D.classes[cls]||{}).students||[]).map(n=>`<option value="${esc(n)}">`).join('');
   $('q').value=cur().q;
   render();
 }
@@ -255,7 +264,7 @@ $('room').addEventListener('change',e=>{room=e.target.value; pinnedDay=null; sav
 $('day').addEventListener('change',e=>{pinnedDay=e.target.value===today()?null:e.target.value; build();});
 
 // keyboard: Done closes it, and so does a tap anywhere outside a text box
-['q','edname'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(id==='edname')$('edsave').click();$(id).blur();}}));
+$('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('q').blur();}});
 document.addEventListener('pointerdown',e=>{const a=document.activeElement;
   if(a&&a.tagName==='INPUT'&&!e.target.closest('input,select,textarea,datalist')) a.blur();},true);
 $('q').addEventListener('input',()=>{cur().q=$('q').value; st.dirty=true; save(); render();});
@@ -295,14 +304,30 @@ $('mPrint').addEventListener('click',()=>{
   setTimeout(()=>window.print(),50);
 });
 
-// seating edits (the dock swaps to the editor)
+// seating edits: tap a seat, then tap a student. No typing.
 const seatById=id=>(cells.find(c=>c.seat.id===id)||{}).seat;
+let edMode='chart';
 function renderEditor(){
-  const has=!!selId, seat=has&&seatById(selId);
-  $('edlabel').textContent=has?('Seat '+seat.label+(st.over[selId]!==undefined?' · changed for today':'')):'Tap a seat to change who sits there';
-  ['edname','edsave','edtoday'].forEach(i=>$(i).disabled=!has);
-  $('edclear').disabled=!(has&&st.over[selId]!==undefined);
-  $('edname').value=has?nameOf(seat):'';
+  const seat=selId&&seatById(selId), who=seat?nameOf(seat):'';
+  $('edlabel').textContent=seat?('Seat '+seat.label+(who?' · '+who:' · empty')):'Tap a seat';
+  $('edempty').disabled=!who;
+  $('edundo').hidden=!(seat&&st.over[selId]!==undefined);
+  document.querySelectorAll('#edmode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===edMode));
+  const roster=(D.classes[cls]||{}).students||[];
+  const where={}; cells.forEach(({seat})=>{const n=nameOf(seat); if(n) where[n]=seat;});
+  const btn=n=>{const w=where[n]; const here=w&&w.id===selId;
+    return `<button type="button" data-n="${esc(n)}" class="${here?'here':w?'seated':''}" ${seat?'':'disabled'}>${esc(n)}${w&&!here?' <small>'+esc(w.label)+'</small>':''}</button>`;};
+  const free=roster.filter(n=>!where[n]), taken=roster.filter(n=>where[n]);
+  $('edpick').innerHTML=(roster.length?'':'<span class="hint">Add students to this class in Setup first.</span>')
+    +(free.length?'<h4>Not seated</h4>'+free.map(btn).join(''):'')
+    +(taken.length?'<h4>Seated · tap to move here</h4>'+taken.map(btn).join(''):'');
+  if(renderEditor.last!==selId){$('edpick').scrollTop=0; renderEditor.last=selId;}
+}
+function rebuildSeats(){const v0=view, keep=selId; D=Classroom.load(); info=Classroom.seats(D,room,cls); cells=Classroom.render($('seats'),info); view=v0; selId=keep;}
+function afterEdit(advance){
+  st.dirty=true; save(); rebuildSeats();
+  if(advance){const next=cells.find(c=>!nameOf(c.seat)); if(next) selId=next.seat.id;}
+  renderEditor(); render();
 }
 function toggleEdit(on){
   editing=on; selId=null;
@@ -311,15 +336,29 @@ function toggleEdit(on){
 }
 $('mEdit').addEventListener('click',()=>{closeMenu();toggleEdit(true);});
 $('editdone').addEventListener('click',()=>toggleEdit(false));
-$('edsave').addEventListener('click',()=>{
-  if(!selId)return; const v=$('edname').value.trim();
-  const d=Classroom.load(); const k=cls+'|'+room; d.charts[k]=d.charts[k]||{};
-  if(v) d.charts[k][selId]=v; else delete d.charts[k][selId];
-  Classroom.save(d); delete st.over[selId]; save();
-  const keep=selId, v0=view; D=d; info=Classroom.seats(D,room,cls); cells=Classroom.render($('seats'),info); view=v0; selId=keep; renderEditor(); render();
+$('edmode').addEventListener('click',e=>{const b=e.target.closest('button[data-m]'); if(b){edMode=b.dataset.m; renderEditor();}});
+$('edpick').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-n]'); if(!b||!selId) return;
+  const n=b.dataset.n, wasEmpty=!nameOf(seatById(selId));
+  const from=cells.find(c=>nameOf(c.seat)===n&&c.seat.id!==selId);
+  if(edMode==='chart'){
+    const d=Classroom.load(), k=cls+'|'+room, ch=d.charts[k]=d.charts[k]||{};
+    Object.keys(ch).forEach(id=>{if(ch[id]===n) delete ch[id];});
+    ch[selId]=n; Classroom.save(d);
+    delete st.over[selId]; if(from) delete st.over[from.seat.id];
+  } else {
+    if(from) st.over[from.seat.id]='';
+    st.over[selId]=n;
+  }
+  afterEdit(wasEmpty);
 });
-$('edtoday').addEventListener('click',()=>{if(!selId)return; st.over[selId]=$('edname').value.trim(); st.dirty=true; save(); renderEditor(); render();});
-$('edclear').addEventListener('click',()=>{if(!selId)return; delete st.over[selId]; save(); renderEditor(); render();});
+$('edempty').addEventListener('click',()=>{
+  if(!selId) return;
+  if(edMode==='chart'){const d=Classroom.load(), k=cls+'|'+room; if(d.charts[k]) delete d.charts[k][selId]; Classroom.save(d); delete st.over[selId];}
+  else st.over[selId]='';
+  afterEdit(false);
+});
+$('edundo').addEventListener('click',()=>{if(!selId) return; delete st.over[selId]; afterEdit(false);});
 
 // export
 function toCSV(){
