@@ -28,7 +28,9 @@
 #seats{flex:1;min-height:0}
 .dock{display:flex;flex-direction:column;gap:8px}
 .tally{display:flex;gap:6px;font:600 15px var(--sans);font-variant-numeric:tabular-nums}
-.tally span{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 10px;display:flex;justify-content:space-between;align-items:baseline}
+.tally button{flex:1;min-height:44px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px 10px;display:flex;justify-content:space-between;align-items:baseline;color:var(--fg);font:600 15px var(--sans)}
+.tally button[aria-pressed="true"]{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-3px;background:var(--sunk)}
+#seats.filtering .seat.dim{opacity:.18}
 .tally b{font:700 20px var(--mono)}
 .tally .g b{color:var(--got)}.tally .p b{color:var(--part)}.tally .x b{color:var(--not)}
 .tally em{font-style:normal;color:var(--muted);font-weight:500;font-size:13px}
@@ -141,7 +143,7 @@ let D=Classroom.load();
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=(P.cls&&D.classes[P.cls])?P.cls:Object.keys(D.classes)[0];
 let room=Classroom.roomFor(D,cls,P);
-let st, info, cells=[], editing=false, selId=null, view=null, pinnedDay=null, day;
+let st, info, cells=[], editing=false, selId=null, view=null, pinnedDay=null, day, filter=null;
 const pad=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
 const dayOf=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -190,7 +192,7 @@ function fillPickers(){
 function build(){
   D=Classroom.load();
   info=Classroom.seats(D,room,cls);
-  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; fillDays();
+  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; filter=null; fillDays();
   cells=Classroom.render($('seats'),info);
   $('board').hidden=isList();
   $('mEdit').hidden=isList();
@@ -227,7 +229,14 @@ function render(){
   });
   $('seats').classList.toggle('editing',editing);
   const c=counts(l), unchecked=counted().filter(x=>!l.marks[x.seat.id]).length;
-  $('tally').innerHTML=`<span class="g">✓ <b>${c.got}</b></span><span class="p">~ <b>${c.part}</b></span><span class="x">✗ <b>${c.not}</b></span><span><em>Unchecked</em> <b>${unchecked}</b></span>`;
+  const tb=(f,cl,lab,n)=>`<button type="button" class="${cl}" data-f="${f}" aria-pressed="${filter===f}">${lab} <b>${n}</b></button>`;
+  $('tally').innerHTML=tb('got','g','✓',c.got)+tb('part','p','~',c.part)+tb('not','x','✗',c.not)+tb('none','','<em>Unchecked</em>',unchecked);
+  // highlight only the seats behind the tapped counter
+  const pool=new Set(counted().map(x=>x.seat.id));
+  $('seats').classList.toggle('filtering',!!filter&&!editing);
+  cells.forEach(({seat,el})=>{const m=l.marks[seat.id];
+    const match=filter==='none'?(pool.has(seat.id)&&!m):(!st.off[seat.id]&&m===filter);
+    el.classList.toggle('dim',!!filter&&!match);});
   const on=view!==null?view:st.laps.length-1;
   $('hist').innerHTML=st.laps.map((l,i)=>{const c=counts(l);
     return `<button type="button" class="chip${on===i?' on':''}" data-i="${i}"><span class="t1">Lap ${i+1}${i===st.laps.length-1?' <i>Now</i>':''}<span style="margin-left:auto;color:var(--got)">✓${c.got}</span></span>`+
@@ -269,6 +278,9 @@ document.addEventListener('pointerdown',e=>{const a=document.activeElement;
   if(a&&a.tagName==='INPUT'&&!e.target.closest('input,select,textarea,datalist')) a.blur();},true);
 $('q').addEventListener('input',()=>{cur().q=$('q').value; st.dirty=true; save(); render();});
 $('newlap').addEventListener('click',()=>{view=null; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
+
+$('tally').addEventListener('click',e=>{const b=e.target.closest('button[data-f]'); if(!b) return;
+  filter=filter===b.dataset.f?null:b.dataset.f; render();});
 
 // recall a lap
 $('hist').addEventListener('click',e=>{const r=e.target.closest('.chip'); if(!r) return;
