@@ -42,6 +42,14 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
 .dims{display:flex;gap:6px;align-items:center;font-size:15px;color:var(--muted)}
 .dims input{width:76px}
 #seats{height:min(54vh,620px)}
+.sumlist{display:flex;flex-direction:column;gap:8px}
+.sum{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg)}
+.sum b{display:block;margin-bottom:4px}
+.sum ul{margin:0;padding-left:18px;font-size:15px;color:var(--fg)}
+.note{display:flex;gap:10px;align-items:center;border-radius:12px;padding:10px 12px;background:var(--sunk);font-size:15px}
+.note.bad{background:transparent;border:1.5px solid var(--not);color:var(--not);font-weight:600}
+.note.warn{display:block;border:1.5px solid var(--part);background:transparent}
+.note.warn ul{margin:4px 0 0;padding-left:18px}
 .pick{display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
 .pick h4{flex-basis:100%;margin:4px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .pick button{min-height:46px;padding:0 14px;background:var(--card);border:1.5px solid var(--line);color:var(--fg)}
@@ -58,6 +66,7 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
     <button type="button" data-t="classes" aria-pressed="true">Classes</button>
     <button type="button" data-t="seating" aria-pressed="false">Seating charts</button>
     <button type="button" data-t="rooms" aria-pressed="false">Rooms</button>
+    <button type="button" data-t="backup" aria-pressed="false">Backup</button>
   </div>
 
   <!-- CLASSES -->
@@ -123,11 +132,50 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
     <p class="hint">Grid: rows of desks, row A at the front. Pods: groups of desks. List: no seats, students in roster order.</p>
   </section>
 
-  <p class="hint">Everything here is shared by every classroom app on this tablet. Nothing leaves the tablet.</p>
+  <!-- BACKUP -->
+  <section id="tab-backup" class="panel" hidden>
+    <h2>Export</h2>
+    <p class="hint">Saves classes, rosters, rooms and seating charts to one file. Laps aren't included.</p>
+    <div class="bar">
+      <button class="primary" id="expSave">Save backup file</button>
+      <button class="ghost" id="expShare" hidden>Share…</button>
+      <button class="plain" id="expCopy">Copy as text</button>
+    </div>
+    <p class="hint" id="expMsg"></p>
+    <textarea id="expText" rows="5" readonly hidden aria-label="Backup text" style="width:100%;font:12px var(--mono)"></textarea>
+
+    <h2 style="margin-top:10px;border-top:1px solid var(--line);padding-top:16px">Import</h2>
+    <p class="hint">Choose a backup file. You'll see every change before anything is saved, and you can undo it afterward.</p>
+    <div class="bar">
+      <label class="btn ghost" for="impFile">Choose file…</label>
+      <input type="file" id="impFile" accept=".json,application/json,text/plain" hidden>
+      <button class="plain" id="impPasteBtn">Paste instead…</button>
+    </div>
+    <div id="impPaste" class="field" hidden>
+      <textarea id="impText" rows="6" aria-label="Paste backup text" style="width:100%;font:13px var(--mono)"></textarea>
+      <div class="bar"><button class="primary" id="impRead">Check this backup</button></div>
+    </div>
+    <div id="impErr" class="note bad" hidden></div>
+    <div id="impPreview" hidden style="display:flex;flex-direction:column;gap:12px">
+      <div id="impMeta" class="hint"></div>
+      <div class="seg" id="impMode" style="align-self:flex-start">
+        <button type="button" data-m="merge" aria-pressed="true">Merge</button>
+        <button type="button" data-m="replace" aria-pressed="false">Replace everything</button>
+      </div>
+      <p class="hint" id="impModeHint"></p>
+      <div id="impSummary" class="sumlist"></div>
+      <div id="impWarn"></div>
+      <div class="bar"><button class="primary" id="impApply">Import</button><button class="ghost" id="impCancel">Cancel</button></div>
+    </div>
+    <div id="undoBox" class="note" hidden><span class="grow" id="undoTxt"></span><button class="ghost" id="undoBtn">Undo</button></div>
+  </section>
+
+  <p class="hint">Everything here is shared by every classroom app on this tablet. Nothing leaves the tablet unless you export it.</p>
   <div id="appver-slot"></div>
 </main>
 
 <script src="../shared/classroom.js"></script>
+<script src="../shared/backup.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
@@ -140,8 +188,8 @@ const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 // -------- tabs
 function showTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));
-  ['classes','seating','rooms'].forEach(x=>$('tab-'+x).hidden=x!==t);
-  fresh(); ({classes:renderClasses,seating:renderSeating,rooms:renderRooms})[t]();
+  ['classes','seating','rooms','backup'].forEach(x=>$('tab-'+x).hidden=x!==t);
+  fresh(); ({classes:renderClasses,seating:renderSeating,rooms:renderRooms,backup:renderBackup})[t]();
   try{sessionStorage.setItem('setupTab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-t]'); if(b) showTab(b.dataset.t);});
@@ -342,6 +390,76 @@ $('rooms').addEventListener('click',e=>{
 });
 $('addRoom').addEventListener('click',()=>{fresh(); const id=newId('r'); D.rooms[id]={name:'New room',type:'grid',rows:5,cols:5}; commit(); renderRooms();
   const inp=document.querySelector(`#rooms .roomcard[data-k="${id}"] input[data-f="name"]`); if(inp){inp.focus();inp.select();}});
+
+// -------- backup
+const UNDO_KEY='classroom.undo';
+const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());};
+function backupText(){fresh(); return JSON.stringify(SetupBackup.exportDoc(D,(window.APP_VERSION||{}).n),null,2);}
+const backupFile=()=>new File([backupText()],'classroom-setup-'+stamp()+'.json',{type:'application/json'});
+function renderBackup(){
+  try{$('expShare').hidden=!(navigator.canShare&&navigator.canShare({files:[backupFile()]}));}catch(e){$('expShare').hidden=true;}
+  const n=Object.keys(D.classes).length, s=Object.values(D.classes).reduce((a,c)=>a+(c.students||[]).length,0), r=Object.keys(D.rooms).length, ch=Object.keys(D.charts).length;
+  $('expMsg').textContent=`${n} class${n===1?'':'es'}, ${s} students, ${r} room${r===1?'':'s'}, ${ch} seating chart${ch===1?'':'s'}.`;
+  showUndo();
+}
+$('expSave').addEventListener('click',()=>{
+  const f=backupFile(), url=URL.createObjectURL(f), a=document.createElement('a');
+  a.href=url; a.download=f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000);
+  $('expMsg').textContent='Saved '+f.name+' to your Downloads.';
+});
+$('expShare').addEventListener('click',async()=>{try{await navigator.share({files:[backupFile()],title:'Classroom setup backup'});}catch(e){}});
+$('expCopy').addEventListener('click',()=>{
+  const t=$('expText'); t.value=backupText();
+  const ok=()=>{$('expMsg').textContent='Copied. Paste it into a note or email to keep it.'; t.hidden=true;};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(ok).catch(()=>{t.hidden=false;t.select();}); else{t.hidden=false;t.select();}
+});
+
+let parsed=null, impMode='merge';
+function resetImport(){parsed=null; $('impPreview').hidden=true; $('impErr').hidden=true; $('impFile').value='';}
+function checkBackup(text){
+  resetImport(); const r=SetupBackup.parse(text);
+  if(!r.ok){$('impErr').textContent=r.error; $('impErr').hidden=false; return;}
+  parsed=r; impMode='merge'; $('impPaste').hidden=true; renderPreview();
+}
+function renderPreview(){
+  fresh(); const pl=SetupBackup.plan(D,parsed.data,impMode);
+  const m=parsed.meta, when=m.exported?new Date(m.exported).toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'an unknown date';
+  $('impMeta').textContent='Backup from '+when+(m.build?' (version '+m.build+')':'')+'.';
+  document.querySelectorAll('#impMode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===impMode));
+  $('impModeHint').textContent=impMode==='merge'
+    ?'Merge adds what is new in the file and keeps everything else on this tablet. Seats in the file win.'
+    :'Replace makes this tablet match the file exactly. Classes and rooms not in the file are removed. Saved laps are kept.';
+  $('impSummary').innerHTML=pl.summary.map(x=>`<div class="sum"><b>${esc(x.title)}</b><ul>${x.lines.map(l=>`<li>${esc(l)}</li>`).join('')}</ul></div>`).join('');
+  const w=parsed.warnings.concat(pl.warnings);
+  $('impWarn').innerHTML=w.length?`<div class="note warn"><b>Fixed or skipped while reading the file</b><ul>${w.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
+  $('impApply').textContent=impMode==='merge'?'Merge into this tablet':'Replace everything';
+  $('impApply').className=impMode==='merge'?'primary':'danger';
+  $('impPreview').hidden=false;
+}
+$('impFile').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0]; if(!f) return;
+  if(f.size>2e6){resetImport();$('impErr').textContent='That file is too large to be a classroom backup.';$('impErr').hidden=false;return;}
+  const rd=new FileReader(); rd.onload=()=>checkBackup(String(rd.result)); rd.onerror=()=>{$('impErr').textContent="Couldn't read that file. Try choosing it again.";$('impErr').hidden=false;}; rd.readAsText(f);});
+$('impPasteBtn').addEventListener('click',()=>{resetImport();$('impPaste').hidden=false;$('impText').focus();});
+$('impRead').addEventListener('click',()=>checkBackup($('impText').value));
+$('impMode').addEventListener('click',e=>{const b=e.target.closest('button[data-m]'); if(b&&parsed){impMode=b.dataset.m; renderPreview();}});
+$('impCancel').addEventListener('click',resetImport);
+$('impApply').addEventListener('click',()=>{
+  if(!parsed) return; fresh();
+  const pl=SetupBackup.plan(D,parsed.data,impMode);
+  try{localStorage.setItem(UNDO_KEY,JSON.stringify({at:Date.now(),mode:impMode,data:D}));}catch(e){}
+  const next=Object.assign({},D,pl.result); D=next; commit();
+  resetImport(); $('impText').value=''; renderBackup();
+  $('expMsg').textContent='Import finished.';
+});
+function showUndo(){
+  let u=null; try{u=JSON.parse(localStorage.getItem(UNDO_KEY));}catch(e){}
+  $('undoBox').hidden=!u;
+  if(u) $('undoTxt').textContent='Last import: '+new Date(u.at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'. Undo puts your setup back the way it was before.';
+}
+$('undoBtn').addEventListener('click',()=>{
+  let u=null; try{u=JSON.parse(localStorage.getItem(UNDO_KEY));}catch(e){} if(!u||!u.data) return;
+  D=u.data; commit(); try{localStorage.removeItem(UNDO_KEY);}catch(e){} renderBackup(); $('expMsg').textContent='Import undone.';
+});
 
 let t0='classes'; try{t0=sessionStorage.getItem('setupTab')||'classes'}catch(e){} if(!$('tab-'+t0)) t0='classes';
 showTab(t0);

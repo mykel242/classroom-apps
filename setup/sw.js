@@ -1,7 +1,7 @@
 // Network first: always use the newest files when online, fall back to the saved copy offline.
-const BUILD='14';
+const BUILD='15';
 const NAME='setup-'+BUILD;
-const FILES=['./','index.html','manifest.webmanifest','../lap/icon.svg','../lap/icon-512.png','../shared/classroom.css','../shared/classroom.js','../shared/app.js','../shared/version.js'];
+const FILES=['./','index.html','manifest.webmanifest','../lap/icon.svg','../lap/icon-512.png','../shared/classroom.css','../shared/classroom.js','../shared/app.js','../shared/version.js','../shared/backup.js'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(NAME).then(c=>Promise.all(FILES.map(f=>fetch(new Request(f,{cache:'reload'})).then(r=>r.ok&&c.put(f,r)).catch(()=>{})))));
   self.skipWaiting();
