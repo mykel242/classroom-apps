@@ -47,17 +47,19 @@ button:disabled{opacity:.45;cursor:default}
 .seat .id{font:600 13px var(--mono);color:var(--muted)}
 .seat .name{font:700 15px var(--sans);max-width:96%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .seats-list .seat .name{font-size:17px}
-.seat .mark{font:800 34px var(--sans);line-height:1}
-.seat .word{font:600 12px var(--sans);text-transform:uppercase;letter-spacing:.06em}
-.seat[data-s="got"]{border-color:var(--got);border-width:4px}
+.seat .mark{font:800 34px var(--sans);line-height:1;min-height:1em}
+.seat .word{font:600 12px var(--sans);text-transform:uppercase;letter-spacing:.06em;min-height:1.3em}
+/* state weight comes from an inner outline so the seat never changes size */
+.seat[data-s="got"],.seat[data-s="part"],.seat[data-s="not"]{outline-offset:-4px;outline-width:2px}
+.seat[data-s="got"]{border-color:var(--got);outline-style:solid;outline-color:var(--got)}
 .seat[data-s="got"] .mark,.seat[data-s="got"] .word{color:var(--got)}
-.seat[data-s="part"]{border-color:var(--part);border-width:4px;border-style:dashed}
+.seat[data-s="part"]{border-color:var(--part);border-style:dashed;outline-style:dashed;outline-color:var(--part)}
 .seat[data-s="part"] .mark,.seat[data-s="part"] .word{color:var(--part)}
-.seat[data-s="not"]{border-color:var(--not);border-width:4px;border-style:dotted}
+.seat[data-s="not"]{border-color:var(--not);border-style:dotted;outline-style:dotted;outline-color:var(--not)}
 .seat[data-s="not"] .mark,.seat[data-s="not"] .word{color:var(--not)}
 .seat[data-off="1"]{opacity:.35}
 .seat[data-ov="1"] .name{font-style:italic;text-decoration:underline dotted}
 .seat[data-empty="1"] .name{color:var(--muted);font-weight:500}
 .editing .seat{border-style:dashed}
-.editing .seat.sel{border:4px solid var(--accent)}
+.editing .seat.sel{border-color:var(--accent);border-style:solid;outline:2px solid var(--accent);outline-offset:-4px}
 @media (max-width:520px){.seat .mark{font-size:24px}.seat .word{display:none}}
