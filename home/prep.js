@@ -50,3 +50,20 @@ function geminiSheet(d){
       if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(ok).catch(()=>{ta.select();document.execCommand('copy');ok();});
       else{ta.select();document.execCommand('copy');ok();}});});
 }
+
+// ---------- move all of one student's measurements on `day` to another school day (before the earliest deadline)
+function reschedSheet(sid,day){
+  const items=dayItems(day).filter(x=>x.sid===sid); if(!items.length) return;
+  const last=items.reduce((a,x)=>x.deadline<a?x.deadline:a,'9999-12-31'), cap=dailyCap(), B=bal();
+  const opts=[]; let d=IEP.nextSchool(IEP.add(day,1));
+  while(opts.length<5){ opts.push(d); d=IEP.nextSchool(IEP.add(d,1)); }
+  const load=d=>B.filter(x=>x.day===d&&x.sid!==sid).length;
+  openSheet(`<h2>Reschedule ${esc(nameAny(sid))}</h2>
+    <p class="hint">${plural(items.length,'measurement')} from ${esc(dayName(day))}. Move to:</p>
+    ${opts.map(o=>{const late=o>last; return `<button class="item" data-to="${o}">${esc(dayName(o))}<small>${late?'past a deadline':(cap?load(o)+' / '+cap+' scheduled':'')}</small></button>`;}).join('')}
+    <div class="sticky-actions"><button class="ghost" id="rsC">Cancel</button></div>`,
+  el=>{el.querySelector('#rsC').addEventListener('click',closeSheet);
+    el.querySelectorAll('[data-to]').forEach(b=>b.addEventListener('click',()=>{
+      I=loadI(); const to=b.dataset.to; items.forEach(x=>{const g=I.goals[x.goal.id]; if(g){g.plan=to; g.updated=Date.now();}});
+      saveI(); closeSheet(); toast(nameAny(sid)+' moved to '+wkday(to)+' '+short(to)); render();}));});
+}

@@ -87,7 +87,7 @@ const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within one year,?\
 // one day's measurements grouped by student
 function whoBlock(items){
   const bySid=new Map(); items.forEach(x=>{if(!bySid.has(x.sid)) bySid.set(x.sid,[]); bySid.get(x.sid).push(x);});
-  return [...bySid.entries()].map(([sid,list])=>`<div class="who"><button type="button" class="nm" data-prof="${esc(sid)}">${esc(nameAny(sid))} ›</button>
+  return [...bySid.entries()].map(([sid,list])=>`<div class="who"><div class="whohead"><button type="button" class="nm" data-prof="${esc(sid)}">${esc(nameAny(sid))} ›</button><button type="button" class="plain resched" data-resched="${esc(sid)}" data-day="${esc(list[0].day)}">Reschedule</button></div>
     ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to next school day">Skip ›</button></div>`).join('')}</div>`).join('');
 }
 function renderToday(){
@@ -140,8 +140,8 @@ function renderToday(){
   if($('goStudents')) $('goStudents').addEventListener('click',()=>{tab='students';render();});
   if($('goBank')) $('goBank').addEventListener('click',()=>{tab='bank';render();});
   $('view').onclick=e=>{
-    const m=e.target.closest('[data-measure]'), p=e.target.closest('[data-prof]'), a=e.target.closest('[data-act]'), k=e.target.closest('[data-skip],[data-print],[data-gem]');
-    if(k){ if(k.dataset.skip) skipMeasure(k.dataset.skip,k.dataset.day); else if(k.dataset.print) printDay(k.dataset.print); else geminiSheet(k.dataset.gem); }
+    const m=e.target.closest('[data-measure]'), p=e.target.closest('[data-prof]'), a=e.target.closest('[data-act]'), k=e.target.closest('[data-skip],[data-print],[data-gem],[data-resched]');
+    if(k){ if(k.dataset.resched) reschedSheet(k.dataset.resched,k.dataset.day); else if(k.dataset.skip) skipMeasure(k.dataset.skip,k.dataset.day); else if(k.dataset.print) printDay(k.dataset.print); else geminiSheet(k.dataset.gem); }
     else if(m){const g=I.goals[m.dataset.measure]; measureSheet([g],renderToday);}
     else if(p) goProfile(p.dataset.prof);
     else if(a) editEntry(A.entries.find(x=>x.id===a.dataset.act),null,renderToday);};
