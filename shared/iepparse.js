@@ -5,8 +5,8 @@
 (function(root){
   const SCHED=/^(\d+|one|two|three|four|five|once|twice)\s*(?:times?|x)?\s*(?:per|a|each|every)\s*(quarter|month|week|day|year|semester|term|marking period|grading period)\.?$/i;
   const SCHED_END=/^(.*\S)\s+((?:\d+|once|twice)\s*(?:times?)?\s*(?:per|a|each)\s*(?:quarter|month|week|day|year|semester|term|marking period|grading period))$/i;
-  const CRIT=/^(\d+\s*%\s*accuracy|\d+\s*out\s*of\s*\d+\s*trials)/i;
-  const METH=/^(teacher|provider|observations?\b|class\s*activit|materials\b|portfolio|standardized|assessment|student\s*work|work\s*samples?|rubric|checklist|data\s*collection|running\s*record|anecdotal|progress\s*monitoring)/i;
+  const CRIT=/^(\d+\s*%|\d+\s*out\s*of\s*\d+\s*(?:consecutive\s*)?trials|\d+\s*consecutive)/i;
+  const METH=/^(teacher|provider|recorded\s*observ|observations?\b|class\s*activit|materials\b|portfolio|standardized|assessment|student\s*work|work\s*samples?|rubric|checklist|data\s*collection|running\s*record|anecdotal|progress\s*monitoring)/i;
   const WORDN={one:1,two:2,three:3,four:4,five:5,once:1,twice:2};
 
   function lines(raw){
@@ -47,9 +47,11 @@
 
   function parseCrit(s){ const t=String(s||''), p=/(\d+)\s*%/.exec(t), o=/(\d+)\s*out\s*of\s*(\d+)/i.exec(t), flags=[];
     let c;
-    if(o&&+o[1]<=+o[2]) c={pct:p?+p[1]:80,x:+o[1],y:+o[2]}; else if(p) c={pct:+p[1],trials:false}; else { c={pct:80,x:4,y:5}; flags.push('criteria'); }
+    const cs=!o&&/(\d+)\s*consecutive/i.exec(t);
+    if(o&&+o[1]<=+o[2]) c={pct:p?+p[1]:80,x:+o[1],y:+o[2]}; else if(cs) c={pct:p?+p[1]:80,x:+cs[1],y:+cs[1]}; else if(p) c={pct:+p[1],trials:false}; else { c={pct:80,x:4,y:5}; flags.push('criteria'); }
     if(o&&!p) flags.push('no %');
     if(o&&!/trials?/i.test(t)) flags.push('not trials');
+    if(cs&&!p) flags.push('no %');
     return {criteria:c,flags}; }
   function parseSched(s){ const m=SCHED.exec(String(s||'').trim());
     if(!m) return {sched:{n:1,per:'month'},flags:['schedule']};
@@ -68,9 +70,16 @@
     if(/assessment task/i.test(t)) add('Assessment Task');
     if(!out.length&&t) add(t.replace(/\.$/,'').slice(0,60));
     return out; }
-  function splitArea(text){ const m=/^([A-Z][A-Za-z &\/]{1,40}):\s*(.*)$/.exec(text);
+  function splitArea(text){ const m=/^([A-Z][A-Za-z &\/]{1,40}?)\s*(?::|\s-|-(?=\s)|–|—)\s*(.*)$/.exec(text);
     if(!m) return {area:'',text};
-    let a=m[1].trim(); a=a.replace(/^Classroom\s+(?=\S)/,''); return {area:a,text:m[2]}; }
+    let a=m[1].trim().replace(/^Classroom\s+(?=\S)/,'').replace(/\s*\/\s*(SETSS|ICT|SC|Resource)\b/gi,'').replace(/^(SETSS|ICT)\s*\/\s*/i,'');
+    return {area:a,text:m[2]}; }
+  // pieces of other columns that ended up stuck to the end of a goal's text
+  const TAIL_METH=/\s+((?:(?:teacher\s*\/\s*provider\s*)?recorded\s+observations?|teacher\s*\/\s*provider\s+observations?|class\s+activities|teacher[\s-]*made\s+materials|observations?)\.?(?:\s+|$))+$/i;
+  function untangle(g){ let text=g.text, crit=g.crit||'', meth=g.meth||'';
+    const tm=TAIL_METH.exec(text); if(tm){ meth=(meth?meth+' ':'')+tm[0].trim(); text=text.slice(0,tm.index); }
+    if(!crit){ const cm=/\s(\d+\s*%.*)$/.exec(text); if(cm){ crit=cm[1].trim(); text=text.slice(0,cm.index); } }
+    return {text:text.trim(),crit,meth}; }
   // swap the student's name in goal text for the {{student}} placeholder
   function unname(text,name){ let s=text; const n=String(name||'').trim(); if(!n) return s;
     const esc=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -114,12 +123,15 @@
 
   // ---- the cleaned format the laptop page produces and the tablet reads back
   function format(goals){ return goals.map((g,i)=>[`GOAL ${i+1}`,`Area: ${g.area||''}`,`Goal: ${g.text}`,`Criteria: ${g.iep.crit||''}`,`Method: ${g.iep.meth||''}`,`Schedule: ${g.iep.sched||''}`].join('\n')).join('\n\n')+'\n'; }
-  const isClean=raw=>/^GOAL\s+\d+\s*$/m.test(String(raw||''))&&/^Goal:\s/m.test(String(raw||''));
+  const tidy=raw=>String(raw||'').replace(/\r/g,'').replace(/\u00a0/g,' ').split('\n').map(l=>l.replace(/^[\s•\-*]+(?=[A-Za-z])/,'').trimEnd()).join('\n');
+  const isClean=raw=>{const t=tidy(raw); return /^GOAL\s*\d+\s*:?\s*$/mi.test(t)&&/^Goal\s*:/m.test(t);};
   function parseClean(raw){
-    const blocks=String(raw).replace(/\r/g,'').split(/^GOAL\s+\d+\s*$/m).slice(1);
-    const goals=blocks.map(b=>{const f={}; let k=null; b.split('\n').forEach(l=>{const m=/^(Area|Goal|Criteria|Method|Schedule):\s?(.*)$/.exec(l); if(m){k=m[1].toLowerCase(); f[k]=m[2].trim();} else if(k&&l.trim()) f[k]+=' '+l.trim();}); return f;});
+    const blocks=tidy(raw).split(/^GOAL\s*\d+\s*:?\s*$/mi).slice(1);
+    const goals=blocks.map(b=>{const f={}; let k=null; b.split('\n').forEach(l=>{const m=/^(Area|Goal|Criteria|Method|Schedule)\s*:\s?(.*)$/i.exec(l); if(m){k=m[1].toLowerCase(); f[k]=m[2].trim();} else if(k&&l.trim()) f[k]+=' '+l.trim();}); return f;});
     return {counts:{goals:goals.length,criteria:goals.length,methods:goals.length,schedules:goals.length},mismatch:false,clean:true,
-      goals:goals.map(f=>{ const pc=parseCrit(f.criteria), ps=parseSched(f.schedule), flags=[...pc.flags,...ps.flags]; if(!f.area) flags.push('area');
+      goals:goals.map(f=>{ if(!f.area){const a=splitArea(f.goal||''); f.area=a.area; f.goal=a.text;}
+        const u=untangle({text:f.goal||'',crit:f.criteria,meth:f.method}); f.goal=u.text; f.criteria=u.crit; f.method=u.meth;
+        const pc=parseCrit(f.criteria), ps=parseSched(f.schedule), flags=[...pc.flags,...ps.flags]; if(!f.area) flags.push('area');
         return {area:f.area||'',text:f.goal||'',criteria:pc.criteria,methods:parseMeth(f.method),sched:ps.sched,iep:{crit:f.criteria||'',meth:f.method||'',sched:f.schedule||''},flags}; })}; }
 
   function parse(raw,name){
@@ -127,7 +139,8 @@
     const c=collect(raw), n=c.goals.length;
     const mismatch=!(c.crits.length===n&&c.meths.length===n&&c.scheds.length===n);
     return {counts:{goals:n,criteria:c.crits.length,methods:c.meths.length,schedules:c.scheds.length},mismatch,
-      goals:c.goals.map((g,i)=>{ const a=splitArea(g.trim()), pc=parseCrit(c.crits[i]), ps=parseSched(c.scheds[i]);
+      goals:c.goals.map((g,i)=>{ const a0=splitArea(g.trim()), u=untangle({text:a0.text,crit:c.crits[i],meth:c.meths[i]}), a={area:a0.area,text:u.text};
+        c.crits[i]=u.crit; c.meths[i]=u.meth; const pc=parseCrit(c.crits[i]), ps=parseSched(c.scheds[i]);
         const flags=[...pc.flags,...ps.flags]; if(!a.area) flags.push('area'); if(mismatch) flags.push('pairing');
         return {area:a.area,text:[].concat(name||[]).reduce((t,n)=>unname(t,n),a.text),criteria:pc.criteria,methods:parseMeth(c.meths[i]),sched:ps.sched,
           iep:{crit:c.crits[i]||'',meth:c.meths[i]||'',sched:c.scheds[i]||''},flags}; })};
