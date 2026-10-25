@@ -74,7 +74,7 @@
       if(int(p.total,1,100,0)&&int(p.correct,0,+p.total,-1)>=0){o.total=+p.total;o.correct=+p.correct;}
       data.push(o);});
     Object.keys(ip.profiles||{}).forEach(sid=>{const p=ip.profiles[sid]; if(!p||typeof p!=='object') return;
-      profiles[sid]=Object.assign({iepDate:DAY.test(p.iepDate||'')?p.iepDate:'',reviewDate:DAY.test(p.reviewDate||'')?p.reviewDate:'',notes:str(p.notes,20000),updated:+p.updated||0},int(p.day,1,5,0)?{day:+p.day}:{});});
+      profiles[sid]=Object.assign({iepDate:DAY.test(p.iepDate||'')?p.iepDate:'',reviewDate:DAY.test(p.reviewDate||'')?p.reviewDate:'',notes:str(p.notes,20000),updated:+p.updated||0},str(p.iepName,80)?{iepName:str(p.iepName,80)}:{},int(p.day,1,5,0)?{day:+p.day}:{});});
     const codes={}; Object.keys(ip.codes||{}).forEach(sid=>{const c=str(ip.codes[sid],6); if(/^[A-Z]{1,4}$/.test(c)) codes[sid]=c;});
     if(bad) warn.push(`${plural(bad,'damaged item')} ${bad===1?'was':'were'} skipped.`);
     const settings={}; const st=(ip.settings||{}); if(int(st.cap,0,50,-1)>=0) settings.cap=+st.cap;

@@ -103,6 +103,8 @@ function iepSheet(sid,after){
     el.querySelector('#ipS').addEventListener('click',()=>{I=loadI(); const p=I.profiles[sid]=I.profiles[sid]||{}; p.iepDate=el.querySelector('#ipD').value; p.reviewDate=el.querySelector('#ipR').value; if(day) p.day=day; else delete p.day; p.updated=Date.now(); saveI(); closeSheet(); toast('Saved'); after();});});
 }
 
+// names a student goes by: roster name, plus the name used in their IEP if different
+function stuNames(sid){ const n=[nameAny(sid)], k=((I.profiles||{})[sid]||{}).iepName; if(k&&k!==n[0]) n.push(k); return n; }
 // ---------- goal editor: a student's goal ({sid}) or a goal bank entry ({bank:true})
 function goalEditor(g,opt,after){
   const isBank=!!opt.bank, isNew=!g, sid=opt.sid, pr=sid?(I.profiles[sid]||{}):{};
@@ -114,7 +116,7 @@ function goalEditor(g,opt,after){
   openSheet(`<h2>${isNew?(isBank?'New goal for the bank':'New goal'):(isBank?'Edit bank goal':'Edit goal')}${sid?' · '+esc(nameAny(sid)):''}</h2>
     <div class="field"><span class="lbl">Area</span><div class="chips" id="gArea">${areas.map(a=>`<button type="button" data-a="${esc(a)}" aria-pressed="${d.area===a}">${esc(a)}</button>`).join('')}<button type="button" class="sug" data-a="__new">Other…</button></div></div>
     <div class="field"><label for="gText">Goal</label><textarea id="gText" placeholder="Paste or type the goal. Use {{student}} where the name goes.">${esc(d.text)}</textarea>
-      <span class="hint">Tip: {{student}} is replaced with each student's name.</span></div>
+      <div class="bar" style="gap:8px"><button type="button" class="ghost" id="insStu" style="min-height:40px">Insert student</button><span class="hint grow">Adds {{student}}, shown as each student's name. Typing the name works too; it's swapped when you save.</span></div></div>
     <div class="field"><span class="lbl">Criteria</span><div class="nums"><input id="cP" type="number" min="1" max="100" value="${esc(d.criteria.pct)}" aria-label="Percent">% accuracy
         <label class="bar" style="gap:6px"><input type="checkbox" id="cT" ${d.criteria.trials===false?'':'checked'} style="width:22px;height:22px"> in</label>
         <span id="cTW" class="nums"><input id="cX" type="number" min="1" max="20" value="${esc(d.criteria.x||4)}" aria-label="Trials needed"> out of <input id="cY" type="number" min="1" max="20" value="${esc(d.criteria.y||5)}" aria-label="Trials considered"> trials</span></div>
@@ -131,6 +133,10 @@ function goalEditor(g,opt,after){
       <div class="note" id="gDelC" hidden style="margin:0 6px">${isBank?'Remove this from the goal bank? Students keep their own copies.':`Delete this goal and its ${plural(I.data.filter(p=>p.goal===d.id).length,'measurement')}? Setting it to Closed keeps the history instead.`}<div class="bar" style="margin-top:8px"><button class="danger" id="gDelY">Delete</button><button class="ghost" id="gDelN">Keep</button></div></div>`}
     <div class="sticky-actions"><button class="ghost" id="gC">Cancel</button><button class="primary" id="gSave">${isNew?'Add':'Save'}</button></div>`,
   el=>{
+    el.querySelector('#insStu').addEventListener('pointerdown',e=>e.preventDefault()); // keep the keyboard and cursor
+    el.querySelector('#insStu').addEventListener('click',()=>{const ta=el.querySelector('#gText'), a=ta.selectionStart??ta.value.length, b=ta.selectionEnd??a, v=ta.value;
+      const pre=a>0&&!/\s$/.test(v.slice(0,a))?' ':'', ins=pre+'{{student}} ';
+      ta.value=v.slice(0,a)+ins+v.slice(b).replace(/^\s+/,''); ta.focus(); ta.selectionStart=ta.selectionEnd=a+ins.length;});
     el.querySelector('#sPer').value=d.sched.per;
     const trialsUI=()=>{const on=el.querySelector('#cT').checked; el.querySelector('#cTW').style.opacity=on?1:.35; el.querySelectorAll('#cTW input').forEach(i=>i.disabled=!on);
       el.querySelector('#cTH').textContent=on?'':'Without trials, the goal counts as meeting criteria when the latest measurement reaches the percent.';};
@@ -152,6 +158,7 @@ function goalEditor(g,opt,after){
       const err=m=>{const x=el.querySelector('#gErr');x.textContent=m;x.hidden=false;};
       const num=(id,lo,hi,def)=>{const v=Math.round(+el.querySelector(id).value); return v>=lo&&v<=hi?v:def;};
       d.text=el.querySelector('#gText').value.trim();
+      if(!isBank&&d.sid) d.text=stuNames(d.sid).reduce((t,n)=>IEPParse.unname(t,n),d.text);
       d.criteria={pct:num('#cP',1,100,80),x:num('#cX',1,20,4),y:num('#cY',1,20,5)};
       if(!el.querySelector('#cT').checked) d.criteria.trials=false;
       else if(d.criteria.x>d.criteria.y) return err('The number of trials needed can\'t be more than the trials considered.');

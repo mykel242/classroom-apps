@@ -5,11 +5,16 @@ const FLAG={'no %':'No % in IEP, using 80%','not trials':'Not "trials": check cr
 function pasteSheet(sid,after,prev){
   openSheet(`<h2>Paste goals · ${esc(nameAny(sid))}</h2>
     <p class="hint">Copy the Measurable Annual Goals pages from the IEP PDF and paste them here. You'll check every goal before anything is saved.</p>
+    <div class="field"><label for="pN">Name in the IEP</label><input type="text" id="pN" value="${esc(((I.profiles[sid]||{}).iepName)||nameAny(sid))}">
+      <span class="hint">If the IEP uses a different name than your roster, type it here. It's remembered for this student.</span></div>
     <textarea id="pT" rows="12" style="width:100%;font-size:14px" placeholder="Paste here">${esc(prev||'')}</textarea>
     <div class="sticky-actions"><button class="ghost" id="pC">Cancel</button><button class="primary" id="pR">Read goals</button></div>`,
   el=>{el.querySelector('#pC').addEventListener('click',closeSheet);
     el.querySelector('#pR').addEventListener('click',()=>{const raw=el.querySelector('#pT').value;
-      const r=IEPParse.parse(raw,nameAny(sid)); if(!r.goals.length){toast('No goals found in that text');return;}
+      const iepName=el.querySelector('#pN').value.trim(); I=loadI(); const pr=I.profiles[sid]=I.profiles[sid]||{};
+      if(iepName&&iepName!==nameAny(sid)){ if(pr.iepName!==iepName){pr.iepName=iepName; pr.updated=Date.now(); saveI();} }
+      else if(pr.iepName){ delete pr.iepName; pr.updated=Date.now(); saveI(); }
+      const r=IEPParse.parse(raw,stuNames(sid)); if(!r.goals.length){toast('No goals found in that text');return;}
       reviewPaste(sid,r,raw,after);});});
 }
 

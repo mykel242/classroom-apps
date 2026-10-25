@@ -83,9 +83,9 @@
     return {counts:{goals:n,criteria:c.crits.length,methods:c.meths.length,schedules:c.scheds.length},mismatch,
       goals:c.goals.map((g,i)=>{ const a=splitArea(g.trim()), pc=parseCrit(c.crits[i]), ps=parseSched(c.scheds[i]);
         const flags=[...pc.flags,...ps.flags]; if(!a.area) flags.push('area'); if(mismatch) flags.push('pairing');
-        return {area:a.area,text:unname(a.text,name),criteria:pc.criteria,methods:parseMeth(c.meths[i]),sched:ps.sched,
+        return {area:a.area,text:[].concat(name||[]).reduce((t,n)=>unname(t,n),a.text),criteria:pc.criteria,methods:parseMeth(c.meths[i]),sched:ps.sched,
           iep:{crit:c.crits[i]||'',meth:c.meths[i]||'',sched:c.scheds[i]||''},flags}; })};
   }
-  const api={parse,collect,parseCrit,parseSched,parseMeth};
+  const api={parse,collect,parseCrit,parseSched,parseMeth,unname};
   if(typeof module!=='undefined') module.exports=api; else root.IEPParse=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -30,7 +30,7 @@ function printDay(d){
 // ---------- copy for Gemini: student codes instead of names, names scrubbed from goal text
 function geminiText(d){
   const m=bySid(dayItems(d));
-  const all=Object.keys(D.classes).flatMap(c=>D.classes[c].students||[]).sort((a,b)=>b.name.length-a.name.length);
+  const all=Object.keys(D.classes).flatMap(c=>D.classes[c].students||[]).flatMap(st=>{const k=(I.profiles[st.id]||{}).iepName; return k?[st,{id:st.id,name:k}]:[st];}).sort((a,b)=>b.name.length-a.name.length);
   const scrub=t=>{let s=IEP.fill(t,'the student'); all.forEach(st=>[st.name,...st.name.split(/\s+/).filter(p=>p.length>=2)].forEach(p=>{
       s=s.replace(new RegExp('(^|[^\\p{L}])'+p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^\\p{L}])','giu'),'$1the student');})); return s;};
   const grade=c=>{const n=((D.classes[c]||{}).name||c||'').match(/^\d/); return n?'grade '+n[0]:'middle school';};
