@@ -22,11 +22,11 @@ function reportSheet(){
   const draw=el=>{const fri=addDays(mon,4);
     el.querySelector('#rWeek').textContent=`${short(mon)} – ${short(fri)}`;
     el.querySelectorAll('#rVer button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===ver));
-    el.querySelector('#rTextW').querySelector('span').textContent=ver==='mentor'?'Include note text (student names are replaced with codes; review before sharing)':'Include note text';
+    el.querySelector('#rTextW').querySelector('span').textContent=ver==='mentor'?'Include lap questions (any student names are removed; review before sharing)':'Include note text and lap questions';
     el.querySelector('#rPrev').innerHTML=buildReport(mon,ver,withText);};
   openSheet(`<h2>Weekly report</h2>
     <div class="bar" style="padding:0 6px"><button class="ghost" id="rP" aria-label="Previous week">‹</button><b id="rWeek" class="grow" style="text-align:center"></b><button class="ghost" id="rN" aria-label="Next week">›</button></div>
-    <div class="field"><span class="lbl">Version</span><div class="seg" id="rVer"><button type="button" data-v="me">For me (names)</button><button type="button" data-v="mentor">For mentor & portfolio (codes)</button></div></div>
+    <div class="field"><span class="lbl">Version</span><div class="seg" id="rVer"><button type="button" data-v="me">For me (names)</button><button type="button" data-v="mentor">For mentor & portfolio (totals only)</button></div></div>
     <label class="bar" id="rTextW" style="gap:8px;padding:0 6px;font-size:15px"><input type="checkbox" id="rText" ${withText?'checked':''} style="width:22px;height:22px"><span></span></label>
     <div class="field"><label for="rName">Your name on the report (optional)</label><input id="rName" type="text" value="${esc(P.reportName||'')}" enterkeyhint="done"></div>
     <div id="rPrev" style="margin:4px 6px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--bg);font-size:14px"></div>
@@ -86,7 +86,7 @@ function buildReport(mon,ver,withText){
   const pct=(a,b)=>b?Math.round(100*a/b)+'%':'—';
 
   let h=`<h1>Weekly status report</h1><p><b>Week of ${T(short(mon))} – ${T(short(fri))}, ${parseDay(mon).getFullYear()}</b> · ${T(classNames||'All classes')}${P.reportName?' · '+T(P.reportName):''}</p>
-    <p style="color:#555">${anon?'Students are identified by code (the same code all year). ':''}Prepared ${T(short(t))} from records kept in Classroom Home.</p>`;
+    <p style="color:#555">${anon?'Class-level totals only; no individual student information. ':''}Prepared ${T(short(t))} from records kept in Classroom Home.</p>`;
   h+=`<h2>At a glance</h2><table><tbody>
     <tr><th>IEP measurements taken</th><td>${pts.length}${sched?` (${schedDone} of ${sched} scheduled this week)`:''} · ${plural(measuredSids.size,'student')}</td></tr>
     <tr><th>Goals meeting criteria</th><td>${meeting} of ${goals.length}</td></tr>
@@ -98,18 +98,35 @@ function buildReport(mon,ver,withText){
     <tr><th>Checks for understanding (laps)</th><td>${lapRows.length}${lapRows.length?' · got it '+pct(lapRows.reduce((a,r)=>a+r.got,0),lapRows.reduce((a,r)=>a+r.got+r.part+r.not,0)):''}</td></tr>
   </tbody></table>`;
 
-  // IEP progress by student
+  // IEP progress: by area for the mentor version, by student for the teacher's own copy
   h+=`<h2>IEP goal progress</h2>`;
+  if(anon){
+    const areas=[...new Set(goals.map(g=>g.area||'Other'))].sort();
+    if(!areas.length) h+='<p>No IEP goals recorded.</p>';
+    else h+=`<table><thead><tr><th>Area</th><th>Goals</th><th>Measured this week</th><th>Average score this week</th><th>Meeting criteria</th></tr></thead><tbody>`+
+      areas.map(a=>{const gs=goals.filter(g=>(g.area||'Other')===a), ids=new Set(gs.map(g=>g.id)), wk=pts.filter(p=>ids.has(p.goal));
+        return `<tr><td>${T(a)}</td><td>${gs.length}</td><td>${wk.length}</td><td>${wk.length?Math.round(wk.reduce((x,p)=>x+p.pct,0)/wk.length)+'%':'—'}</td><td>${gs.filter(g=>IEP.criteria(g,I.data).met).length} of ${gs.length}</td></tr>`;}).join('')+`</tbody></table>`;
+  } else {
   const sids=[...new Set(goals.map(g=>g.sid))].sort((a,b)=>who(a).localeCompare(who(b)));
   if(!sids.length) h+='<p>No IEP goals recorded.</p>';
   else h+=`<table><thead><tr><th>Student</th><th>Goal</th><th>This week</th><th>Toward criteria</th><th>Status today</th></tr></thead><tbody>`+
     sids.map(sid=>goals.filter(g=>g.sid===sid).map((g,i)=>{const wk=pts.filter(p=>p.goal===g.id), cr=IEP.criteria(g,I.data), nx=nextText(g);
       const gtxt=(g.area?g.area+': ':'')+scrub(IEP.fill(g.text,who(sid)));
       return `<tr><td>${i===0?T(who(sid)):''}</td><td>${T(gtxt)}<br><small>${T(IEP.critText(g.criteria))}</small></td><td>${wk.length?wk.map(p=>p.pct+'%').join(', '):'—'}</td><td>${T(cr.text)}${cr.met?' ✓':''}</td><td>${T(nx.txt)}</td></tr>`;}).join('')).join('')+`</tbody></table>`;
+  }
 
   // contacts
   h+=`<h2>Family and student contacts</h2>`;
   if(!acts.length) h+='<p>None recorded this week.</p>';
+  else if(anon){
+    const days=new Set(acts.map(e=>e.date)), studs=new Set(acts.flatMap(e=>e.sids||[]));
+    h+=`<table><thead><tr><th>Type</th><th>Count</th><th>Detail</th></tr></thead><tbody>
+      <tr><td>Family contacts</td><td>${byType('parent').length}</td><td>${T(Object.entries(methods).map(([m,n])=>m+' '+n).join(', ')||'—')}</td></tr>
+      <tr><td>Student conferences</td><td>${byType('student').length}</td><td></td></tr>
+      <tr><td>Behavior notes</td><td>${byType('behavior').length}</td><td></td></tr>
+      <tr><td>Follow-ups</td><td>${fuOpened} opened</td><td>${fuClosed} completed · ${fuOpenLate} open and due</td></tr>
+      </tbody></table><p>Across ${plural(days.size,'day')} and ${plural(studs.size,'student')}.</p>`;
+  }
   else h+=`<table><thead><tr><th>Date</th><th>Type</th><th>Student(s)</th><th>How</th>${withText?'<th>Summary</th>':''}<th>Follow-up</th></tr></thead><tbody>`+
     acts.map(e=>`<tr><td>${T(short(e.date))}</td><td>${T(TSHORT[e.type])}</td><td>${T((e.sids||[]).map(who).join(', '))}</td><td>${T(e.type==='parent'?(e.method||'')+(e.with?' · '+e.with:''):'')}</td>${withText?`<td>${T(scrub(e.summary))}${e.outcome?'<br><i>'+T(scrub(e.outcome))+'</i>':''}</td>`:''}<td>${e.fu&&e.fu.date?T((e.fu.done?'Done':'Due '+short(e.fu.date))+(withText&&e.fu.text?': '+scrub(e.fu.text):'')):'—'}</td></tr>`).join('')+`</tbody></table>`;
 
@@ -120,11 +137,11 @@ function buildReport(mon,ver,withText){
     h+=`<table><thead><tr><th>Class</th><th>Laps</th><th>Got it</th><th>Partial</th><th>Not yet</th></tr></thead><tbody>`+
       Object.keys(lapCls).map(c=>{const o=lapCls[c], n=o.got+o.part+o.not; return `<tr><td>${T((D.classes[c]||{}).name||c)}</td><td>${o.laps}</td><td>${pct(o.got,n)}</td><td>${pct(o.part,n)}</td><td>${pct(o.not,n)}</td></tr>`;}).join('')+`</tbody></table>`;
     if(withText) h+=`<table><thead><tr><th>Day</th><th>Class</th><th>Question</th><th>Got it / partial / not yet</th></tr></thead><tbody>`+
-      lapRows.map(r=>`<tr><td>${T(wkday(r.day))}</td><td>${T((D.classes[r.cls]||{}).name||'')}</td><td>${T(scrub(r.q)||'—')}</td><td>${r.got} / ${r.part} / ${r.not}</td></tr>`).join('')+`</tbody></table>`;
+      lapRows.map(r=>`<tr><td>${T(wkday(r.day))}</td><td>${T((D.classes[r.cls]||{}).name||'')}</td><td>${T((anon?scrub(r.q).replace(/Student [A-Z]{1,4}/g,'[student]'):r.q)||'—')}</td><td>${r.got} / ${r.part} / ${r.not}</td></tr>`).join('')+`</tbody></table>`;
   }
 
   // reflection (left blank on purpose)
-  const prompts=['What went well this week','Students to watch and why','Priorities for next week',anon?'Questions for my mentor':'Notes',...(anon?['Mentor comments']:[])];
+  const prompts=['What went well this week',anon?'Patterns I\'m noticing':'Students to watch and why','Priorities for next week',anon?'Questions for my mentor':'Notes',...(anon?['Mentor comments']:[])];
   h+=`<h2>Reflection</h2>`+prompts.map(p=>`<p><b>${T(p)}</b></p><div style="border-bottom:1px solid #999;height:22px"></div><div style="border-bottom:1px solid #999;height:22px"></div><div style="border-bottom:1px solid #999;height:22px;margin-bottom:8px"></div>`).join('');
   return h;
 }
