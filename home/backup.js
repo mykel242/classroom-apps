@@ -13,7 +13,7 @@
     A=loadA(); C=loadC(); I=loadI(); D=Classroom.load();
     const names={}; Object.keys(D.classes).forEach(c=>{names[c]={name:D.classes[c].name,students:Object.fromEntries((D.classes[c].students||[]).map(s=>[s.id,s.name]))};});
     return JSON.stringify({app:'classroom-home',format:FORMAT,exported:new Date().toISOString(),build:(window.APP_VERSION||{}).n||null,names,
-      iep:{bank:I.bank,goals:I.goals,data:I.data,profiles:I.profiles},activity:A.entries,accommodations:C.students},null,2);
+      iep:{bank:I.bank,goals:I.goals,data:I.data,profiles:I.profiles,codes:I.codes||{}},activity:A.entries,accommodations:C.students},null,2);
   }
   const fileOf=(ext,type)=>new File([exportText()],'classroom-home-'+stamp()+'.'+ext,{type});
 
@@ -73,8 +73,9 @@
       data.push(o);});
     Object.keys(ip.profiles||{}).forEach(sid=>{const p=ip.profiles[sid]; if(!p||typeof p!=='object') return;
       profiles[sid]={iepDate:DAY.test(p.iepDate||'')?p.iepDate:'',reviewDate:DAY.test(p.reviewDate||'')?p.reviewDate:'',notes:str(p.notes,20000),updated:+p.updated||0};});
+    const codes={}; Object.keys(ip.codes||{}).forEach(sid=>{const c=str(ip.codes[sid],6); if(/^[A-Z]{1,4}$/.test(c)) codes[sid]=c;});
     if(bad) warn.push(`${plural(bad,'damaged item')} ${bad===1?'was':'were'} skipped.`);
-    return {ok:true,entries,acc,bank,goals,data,profiles,names:raw.names||{},warn,exported:raw.exported||null};
+    return {ok:true,codes,entries,acc,bank,goals,data,profiles,names:raw.names||{},warn,exported:raw.exported||null};
   }
 
   // ---- line up classes and students with this tablet: by id, then by name
@@ -114,6 +115,9 @@
     // accommodations: add any not already listed
     Object.keys(f.acc).forEach(s=>{const sid=mapSid(null,s); if(!sid){lost.add(s);return;} const list=res.students[sid]||[]; let added=0;
       f.acc[s].forEach(a=>{if(!list.some(x=>lc(x.text)===lc(a.text))){list.push(a);added++;}}); if(added){res.students[sid]=list;cnt.aS++;cnt.aN+=added;}});
+    // report codes: keep this tablet's; take the file's for students who have none, unless that code is taken
+    res.codes=Object.assign({},I.codes||{}); const usedC=new Set(Object.values(res.codes));
+    Object.keys(f.codes||{}).forEach(s=>{const sid=mapSid(null,s); if(sid&&!res.codes[sid]&&!usedC.has(f.codes[s])){res.codes[sid]=f.codes[s]; usedC.add(f.codes[s]);}});
     if(lost.size) warn.push(`Data for ${plural(lost.size,'student')} not on this tablet's rosters was skipped.`);
     const L=[];
     if(cnt.gN||cnt.gU) L.push(`Goals: ${cnt.gN} new${cnt.gU?', '+cnt.gU+' updated':''}`);
@@ -154,7 +158,7 @@
       el.querySelector('#iApply').addEventListener('click',()=>{if(!pl) return;
         try{localStorage.setItem(UNDO,JSON.stringify({at:Date.now(),a:loadA(),c:loadC(),i:loadI()}));}catch(e){}
         A=loadA(); A.entries=pl.res.entries; C=loadC(); C.students=pl.res.students;
-        I=loadI(); I.bank=pl.res.bank; I.goals=pl.res.goals; I.data=pl.res.data; I.profiles=pl.res.profiles;
+        I=loadI(); I.bank=pl.res.bank; I.goals=pl.res.goals; I.data=pl.res.data; I.profiles=pl.res.profiles; I.codes=pl.res.codes;
         saveA(); saveC(); saveI(); closeSheet(); toast('Import finished'); render();});
     });
   }

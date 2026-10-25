@@ -90,7 +90,8 @@ function renderToday(){
   const fus=A.entries.filter(e=>inScope(e.cls)&&e.fu&&e.fu.date&&!e.fu.done);
   const laps=lapDays();
   const dueNow=ag.filter(x=>x.day<=t), overdue=dueNow.filter(x=>x.overdue), fuNow=fus.filter(e=>e.fu.date<=t);
-  let h=`<div class="weekbar"><button class="ghost" id="wPrev" aria-label="Previous week">‹</button><h2>${thisWeek?(isWeekend()?'Coming week':'This week'):'Week of '+short(mon)} <span class="meta" style="font-weight:500">${short(mon)}–${short(fri)}</span></h2>${thisWeek?'':'<button class="ghost" id="wNow">Today</button>'}<button class="ghost" id="wNext" aria-label="Next week">›</button></div>`;
+  let h=`<div class="weekbar"><button class="ghost" id="wPrev" aria-label="Previous week">‹</button><h2>${thisWeek?(isWeekend()?'Coming week':'This week'):'Week of '+short(mon)} <span class="meta" style="font-weight:500">${short(mon)}–${short(fri)}</span></h2>${thisWeek?'':'<button class="ghost" id="wNow">Today</button>'}<button class="ghost" id="wNext" aria-label="Next week">›</button></div>
+    <div class="bar"><span class="grow"></span><button class="plain" id="wReport" style="padding:0;min-height:32px">Weekly report ›</button></div>`;
   if(thisWeek) h+=`<div class="tiles">
     <button type="button" class="tile ${overdue.length?'alert':''}" id="tDue"><b>${dueNow.length}</b><span>${dueNow.length===1?'measurement':'measurements'} due${overdue.length?' · '+overdue.length+' overdue':''}</span></button>
     <button type="button" class="tile ${fuNow.some(e=>e.fu.date<t)?'alert':''}" id="tFu"><b>${fuNow.length}</b><span>follow-ups due</span></button>
@@ -129,6 +130,7 @@ function renderToday(){
   $('wPrev').addEventListener('click',()=>{weekOff--;renderToday();});
   $('wNext').addEventListener('click',()=>{weekOff++;renderToday();});
   if($('wNow')) $('wNow').addEventListener('click',()=>{weekOff=0;renderToday();});
+  $('wReport').addEventListener('click',reportSheet);
   if($('tFu')) $('tFu').addEventListener('click',()=>{tab='activity';actFilter='fu';savePrefs();render();});
   if($('tDue')) $('tDue').addEventListener('click',()=>{const c=document.querySelector('.day.today'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'});});
   if($('goStudents')) $('goStudents').addEventListener('click',()=>{tab='students';render();});
@@ -159,12 +161,14 @@ function dayCard(d,items,fus,laps,isT){
 // ---------- menu
 $('menuBtn').addEventListener('click',()=>openSheet(`<button class="item" id="mExport">Export backup</button>
   <button class="item" id="mImport">Import backup…</button>
+  <button class="item" id="mReport">Weekly report…</button>
   <button class="item" id="mCsvM">Copy measurements as CSV</button>
   <button class="item" id="mCsv">Copy activity log as CSV</button>
   <hr><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>`,
   el=>{el.querySelector('#mExport').addEventListener('click',()=>HomeBackup.exportSheet());
     el.querySelector('#mImport').addEventListener('click',()=>HomeBackup.importSheet());
     el.querySelector('#mCsvM').addEventListener('click',()=>HomeBackup.copyMeasureCsv());
+    el.querySelector('#mReport').addEventListener('click',reportSheet);
     el.querySelector('#mCsv').addEventListener('click',()=>HomeBackup.copyCsv());}));
 
 addEventListener('storage',e=>{if([AK,CK,IEP.KEY,'classroom.v1'].includes(e.key)) render();});
