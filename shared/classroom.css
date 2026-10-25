@@ -45,9 +45,13 @@ button:disabled{opacity:.4;cursor:default}
 .sheet{background:var(--card);width:100%;max-width:640px;border-radius:18px 18px 0 0;
   padding:18px max(18px, env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px, env(safe-area-inset-left,0px));
   display:flex;flex-direction:column;gap:6px;max-height:85%;overflow:auto}
+/* rows keep their natural height; the sheet scrolls instead of squeezing them */
+.sheet>*{flex-shrink:0}
 .sheet .item{justify-content:flex-start;background:none;border:0;color:var(--fg);font-weight:500;padding:0 6px;min-height:52px;width:100%;text-align:left}
 .sheet .item:active{background:var(--sunk)}
 .sheet .item small{margin-left:auto;color:var(--muted);font-weight:500}
+.sheet .item.col{flex-direction:column;align-items:flex-start;gap:2px;padding:8px 6px}
+.sheet .item.col small{margin-left:0}
 .sheet hr{border:0;border-top:1px solid var(--line);margin:6px 0;width:100%}
 
 /* seats: the layout fills whatever height its container gives it */

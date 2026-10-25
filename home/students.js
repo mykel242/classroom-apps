@@ -168,7 +168,7 @@ function addGoalSheet(sid,after){
   const bank=Object.values(I.bank).sort((a,b)=>String(a.area).localeCompare(String(b.area))||a.text.localeCompare(b.text));
   openSheet(`<h2>Add a goal · ${esc(nameAny(sid))}</h2>
     <div class="bar" style="padding:0 6px"><button class="primary" id="agNew">Write a new goal</button></div>
-    ${bank.length?`<div class="lbl" style="padding:0 6px">From the goal bank</div>`+bank.map(b=>`<button type="button" class="item" data-b="${esc(b.id)}" ${have.has(b.id)?'disabled':''} style="flex-direction:column;align-items:flex-start;gap:2px;min-height:60px;padding:8px 6px">
+    ${bank.length?`<div class="lbl" style="padding:0 6px">From the goal bank</div>`+bank.map(b=>`<button type="button" class="item col" data-b="${esc(b.id)}" ${have.has(b.id)?'disabled':''}>
       <span>${b.area?`<span class="tag area">${esc(b.area)}</span> `:''}${have.has(b.id)?'<span class="tag ok">already added</span>':''}</span><span style="white-space:normal">${esc(IEP.fill(b.text,nameAny(sid)))}</span><small>${esc(IEP.critText(b.criteria))} · ${esc(IEP.schedText(b.sched))}</small></button>`).join('')
       :'<p class="hint" style="padding:0 6px">The goal bank is empty. Goals you write are saved there so you can reuse the wording.</p>'}
     <div class="sticky-actions"><button class="ghost" id="agC">Cancel</button></div>`,

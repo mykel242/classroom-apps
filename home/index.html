@@ -118,7 +118,7 @@ textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.4
 .hist .t{flex:1;min-width:0}
 .note{border-radius:12px;padding:10px 12px;background:var(--sunk);font-size:15px}
 .note.bad{border:1.5px solid var(--not);background:transparent;color:var(--not);font-weight:600}
-.sticky-actions{position:sticky;bottom:0;background:var(--card);padding:10px 6px 2px;display:flex;gap:10px}
+.sticky-actions{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom,0px));background:var(--card);padding:10px 6px calc(18px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-18px - env(safe-area-inset-bottom,0px));display:flex;gap:10px}
 .sticky-actions button{flex:1}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(16px + env(safe-area-inset-top,0px));z-index:40;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font:600 15px var(--sans)}
 #printout{display:none}
