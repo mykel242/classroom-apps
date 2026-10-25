@@ -88,7 +88,7 @@ const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within one year,?\
 function whoBlock(items){
   const bySid=new Map(); items.forEach(x=>{if(!bySid.has(x.sid)) bySid.set(x.sid,[]); bySid.get(x.sid).push(x);});
   return [...bySid.entries()].map(([sid,list])=>`<div class="who"><button type="button" class="nm" data-prof="${esc(sid)}">${esc(nameAny(sid))} ›</button>
-    ${list.map(x=>`<button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button>`).join('')}</div>`).join('');
+    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to next school day">Skip ›</button></div>`).join('')}</div>`).join('');
 }
 function renderToday(){
   const t=today(), mon=monday(weekOff), days=[0,1,2,3,4].map(i=>addDays(mon,i)), fri=days[4], thisWeek=weekOff===0;
@@ -140,8 +140,9 @@ function renderToday(){
   if($('goStudents')) $('goStudents').addEventListener('click',()=>{tab='students';render();});
   if($('goBank')) $('goBank').addEventListener('click',()=>{tab='bank';render();});
   $('view').onclick=e=>{
-    const m=e.target.closest('[data-measure]'), p=e.target.closest('[data-prof]'), a=e.target.closest('[data-act]');
-    if(m){const g=I.goals[m.dataset.measure]; measureSheet([g],renderToday);}
+    const m=e.target.closest('[data-measure]'), p=e.target.closest('[data-prof]'), a=e.target.closest('[data-act]'), k=e.target.closest('[data-skip],[data-print],[data-gem]');
+    if(k){ if(k.dataset.skip) skipMeasure(k.dataset.skip,k.dataset.day); else if(k.dataset.print) printDay(k.dataset.print); else geminiSheet(k.dataset.gem); }
+    else if(m){const g=I.goals[m.dataset.measure]; measureSheet([g],renderToday);}
     else if(p) goProfile(p.dataset.prof);
     else if(a) editEntry(A.entries.find(x=>x.id===a.dataset.act),null,renderToday);};
 }
@@ -157,7 +158,7 @@ function dayCard(d,items,fus,laps,isT){
   const cap=dailyCap(), over=items.some(x=>x.overCap);
   let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue)?'over':'due'}">${items.length}${cap?' / '+cap:''} measurement${items.length===1?'':'s'}</span>`:''}</div>`;
   if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit: some of these can't move later without missing their deadline.</div>`;
-  if(items.length) h+=whoBlock(items);
+  if(items.length) h+=whoBlock(items)+`<div class="dayacts"><button type="button" class="plain" data-print="${esc(d)}">Print data sheet</button><button type="button" class="plain" data-gem="${esc(d)}">Copy for Gemini</button></div>`;
   fus.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
   if(!items.length&&!fus.length&&!bits.length) h+=`<div class="done">${past?'Nothing recorded.':'Nothing scheduled.'}</div>`;
   if(bits.length) h+=`<div class="done">✓ ${bits.join(' · ')}</div>`;

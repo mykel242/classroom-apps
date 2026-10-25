@@ -47,6 +47,11 @@ main{gap:12px;padding-top:0}
 .who:first-of-type{border-top:0;padding-top:0}
 .who .nm{font-weight:700;background:none;border:0;color:var(--fg);padding:0;min-height:0;justify-content:flex-start;font-size:16px}
 .gl{display:flex;gap:8px;align-items:center;width:100%;background:var(--sunk);border:0;border-radius:10px;padding:8px 10px;color:var(--fg);text-align:left;font-weight:400;min-height:44px;justify-content:flex-start}
+.glr{display:flex;gap:6px;align-items:stretch}
+.glr .gl{flex:1;min-width:0}
+.glr .skip{min-height:44px;padding:0 10px;font-size:14px;flex-shrink:0}
+.dayacts{display:flex;gap:16px;flex-wrap:wrap;justify-content:flex-end}
+.dayacts button{padding:0;min-height:36px;font-size:15px}
 .gl .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .it{display:flex;gap:8px;align-items:baseline;font-size:15px;padding:4px 0;border-top:1px solid var(--line);text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;color:var(--fg);width:100%;min-height:0;border-radius:0;justify-content:flex-start;font-weight:400}
 .it:first-of-type{border-top:0}
@@ -131,6 +136,10 @@ textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.4
   #printout p{margin:2px 0}
   #printout table{border-collapse:collapse;width:100%;margin:6px 0 10px}
   #printout th,#printout td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}
+  #printout .ds{break-inside:avoid;border-top:2px solid #000;padding-top:8px;margin-bottom:14px}
+  #printout .dg{break-inside:avoid;margin-bottom:8px}
+  #printout .boxes span{display:inline-block;margin-right:14px;font-size:14px}
+  #printout .ln{border-bottom:1px solid #999;padding-bottom:18px}
 }
 </style>
 </head>
@@ -161,6 +170,7 @@ textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.4
 <script src="students.js"></script>
 <script src="activity.js"></script>
 <script src="report.js"></script>
+<script src="prep.js"></script>
 <script src="backup.js"></script>
 <script>render();</script>
 <script src="../shared/version.js"></script>
