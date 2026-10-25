@@ -13,18 +13,23 @@
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 .head{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 8px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--line)}
 main{gap:12px;padding-top:0}
+#view{display:flex;flex-direction:column;gap:12px}
 #clsBtn{min-height:44px;justify-content:flex-start;background:var(--card);border:1.5px solid var(--line);color:var(--fg);font:700 17px var(--sans);flex:1;min-width:0}
 #clsBtn i{font-style:normal;margin-left:auto;color:var(--muted);font-size:14px}
 .iconbtn{min-height:44px;min-width:44px;padding:0;font-size:22px;background:var(--card);border:1.5px solid var(--line);color:var(--fg)}
-.tabs{display:flex}.tabs button{flex:1}
+.tabs{display:flex}.tabs button{flex:1;padding:0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .card h3{margin:0;font-size:16px}
+.sec{display:flex;align-items:center;gap:8px;margin-top:4px}
+.sec h2{flex:1;font-size:18px}
 .meta{font-size:14px;color:var(--muted)}
 .tag{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:2px 8px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
 .tag.over{border-color:var(--not);color:var(--not)}.tag.due{border-color:var(--part);color:var(--part)}.tag.ok{border-color:var(--got);color:var(--got)}
-.tag.parent{border-color:var(--accent);color:var(--accent)}.tag.behavior{border-color:var(--not);color:var(--not)}
+.tag.parent,.tag.area{border-color:var(--accent);color:var(--accent)}.tag.behavior{border-color:var(--not);color:var(--not)}
 .empty{padding:24px 12px;text-align:center;color:var(--muted)}
-/* dashboard */
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btnrow button,.btnrow .btn{min-height:42px;font-size:15px;padding:0 14px}
+/* today */
 .weekbar{display:flex;align-items:center;gap:8px}
 .weekbar h2{flex:1;font-size:19px}
 .weekbar button{min-height:44px;min-width:44px;padding:0 12px}
@@ -36,16 +41,36 @@ main{gap:12px;padding-top:0}
 @media (max-width:520px){.tiles{grid-template-columns:1fr 1fr}}
 .day{gap:6px}
 .day.today{border:2px solid var(--accent)}
-.day.past{opacity:.85}
 .dayhead{display:flex;align-items:baseline;gap:8px}
 .dayhead h3{flex:1}
+.who{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:8px}
+.who:first-of-type{border-top:0;padding-top:0}
+.who .nm{font-weight:700;background:none;border:0;color:var(--fg);padding:0;min-height:0;justify-content:flex-start;font-size:16px}
+.gl{display:flex;gap:8px;align-items:center;width:100%;background:var(--sunk);border:0;border-radius:10px;padding:8px 10px;color:var(--fg);text-align:left;font-weight:400;min-height:44px;justify-content:flex-start}
+.gl .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .it{display:flex;gap:8px;align-items:baseline;font-size:15px;padding:4px 0;border-top:1px solid var(--line);text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;color:var(--fg);width:100%;min-height:0;border-radius:0;justify-content:flex-start;font-weight:400}
 .it:first-of-type{border-top:0}
-.it .k{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);min-width:76px}
+.it .k{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);min-width:64px}
 .it .v{flex:1;min-width:0}
 .it .v small{color:var(--muted)}
 .done{font-size:14px;color:var(--muted)}
-.feed .it .k{min-width:60px}
+/* students */
+.rowbtn{display:flex;align-items:center;gap:10px;min-height:52px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 12px;color:var(--fg);text-align:left;font:500 16px var(--sans);justify-content:flex-start}
+.rowbtn .grow{min-width:0}
+.prof-h{display:flex;gap:10px;align-items:flex-start}
+.prof-h h2{font-size:22px}
+.facts{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.facts b{color:var(--fg);font-weight:600}
+.goal .stmt{font-size:16px;line-height:1.4}
+.res{display:flex;gap:4px;flex-wrap:wrap}
+.res span{font:600 12px var(--mono);border-radius:6px;padding:2px 6px;background:var(--sunk)}
+.res .y{color:var(--got)}.res .n{color:var(--not)}
+.acc{display:flex;flex-wrap:wrap;gap:6px}
+.acc span{background:var(--sunk);border-radius:999px;padding:4px 10px;font-size:14px}
+.acc span small{color:var(--muted)}
+.stu{text-align:left;align-items:stretch;justify-content:flex-start;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--fg);font-weight:400;min-height:0}
+.clshead{font:700 15px var(--sans);margin:8px 2px 0}
+textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.45}
 /* activity */
 .filters{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .filters::-webkit-scrollbar{display:none}
@@ -54,26 +79,21 @@ main{gap:12px;padding-top:0}
 .datehead{font:700 13px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:6px 2px 0}
 .entry{text-align:left;align-items:stretch;justify-content:flex-start;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--fg);font-weight:400;min-height:0}
 .entry .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.entry .who{font-weight:700;flex:1;min-width:0}
+.entry .whos{font-weight:700;flex:1;min-width:0}
 .entry .sum{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:15px}
 .fu{font-size:14px;display:flex;gap:6px;align-items:center}
-/* accommodations */
-.acc{display:flex;flex-wrap:wrap;gap:6px}
-.acc span{background:var(--sunk);border-radius:999px;padding:4px 10px;font-size:14px}
-.acc span small{color:var(--muted)}
-.stu{text-align:left;align-items:stretch;justify-content:flex-start;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--fg);font-weight:400;min-height:0}
-.stu b{font-size:16px}
-.clshead{font:700 15px var(--sans);margin:8px 2px 0}
 /* sheets */
 .sheet h2{margin:2px 6px 4px}
 .sheet .field{display:flex;flex-direction:column;gap:4px;padding:0 6px}
 .sheet .field label,.lbl{font-size:13px;color:var(--muted);font-weight:600}
 .sheet textarea{min-height:80px;font:16px var(--sans);line-height:1.4}
+.sheet .seg{flex-wrap:wrap}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chips button{min-height:42px;padding:0 12px;background:var(--card);border:1.5px solid var(--line);color:var(--fg);font-weight:500}
 .chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--onaccent);font-weight:700}
 .chips .sug{border-style:dashed;color:var(--accent)}
-.sheet .seg{flex-wrap:wrap}
+.nums{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:16px}
+.nums input{width:80px}
 .items{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 6px}
 .items .row{display:flex;gap:8px;align-items:center;padding:6px 6px 6px 12px;border-top:1px solid var(--line)}
 .items .row:first-child{border-top:0}
@@ -81,6 +101,21 @@ main{gap:12px;padding-top:0}
 .items .row input{width:100%;min-height:40px;padding:6px 10px;font-size:15px}
 .x{min-height:40px;padding:0 10px;background:none;border:0;color:var(--muted);font-size:14px}
 .x.sure{background:var(--not);color:var(--onaccent)}
+.mrow{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px;margin:0 6px}
+.mrow .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mrow .nm{font-weight:700}
+.mrow .gt{font-size:14px;color:var(--muted)}
+.step{display:inline-flex;align-items:center;gap:4px}
+.step button{min-height:44px;min-width:44px;padding:0;font-size:22px;background:var(--card);border:1.5px solid var(--line);color:var(--fg)}
+.step output{font:700 22px var(--mono);min-width:2ch;text-align:center}
+.pct{font:700 18px var(--mono);min-width:5ch;text-align:right}
+.pct.hit{color:var(--got)}
+.hist{display:flex;flex-direction:column;padding:0 6px}
+.hist .h{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding:8px 2px;font-size:15px}
+.hist .h:first-child{border-top:0}
+.hist .d{font:600 13px var(--mono);color:var(--muted);width:7ch}
+.hist .r{font:700 15px var(--mono);width:9ch}
+.hist .t{flex:1;min-width:0}
 .note{border-radius:12px;padding:10px 12px;background:var(--sunk);font-size:15px}
 .note.bad{border:1.5px solid var(--not);background:transparent;color:var(--not);font-weight:600}
 .sticky-actions{position:sticky;bottom:0;background:var(--card);padding:10px 6px 2px;display:flex;gap:10px}
@@ -91,8 +126,10 @@ main{gap:12px;padding-top:0}
   html,body{height:auto;background:#fff}
   body>*{display:none!important}
   #printout{display:block!important;font:12px var(--sans);color:#000}
-  #printout h1{font-size:16px;margin:0 0 8px}
-  #printout table{border-collapse:collapse;width:100%;margin-bottom:12px}
+  #printout h1{font-size:17px;margin:0 0 4px}
+  #printout h2{font-size:14px;margin:14px 0 4px}
+  #printout p{margin:2px 0}
+  #printout table{border-collapse:collapse;width:100%;margin:6px 0 10px}
   #printout th,#printout td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}
 }
 </style>
@@ -105,12 +142,13 @@ main{gap:12px;padding-top:0}
       <button type="button" class="iconbtn" id="menuBtn" aria-label="More">⋯</button>
     </div>
     <div class="seg tabs" id="tabs">
-      <button type="button" data-t="week" aria-pressed="true">This week</button>
-      <button type="button" data-t="activity" aria-pressed="false">Activity log</button>
-      <button type="button" data-t="accom" aria-pressed="false">Accommodations</button>
+      <button type="button" data-t="today" aria-pressed="true">Today</button>
+      <button type="button" data-t="students" aria-pressed="false">Students</button>
+      <button type="button" data-t="bank" aria-pressed="false">Goal bank</button>
+      <button type="button" data-t="activity" aria-pressed="false">Activity</button>
     </div>
   </div>
-  <div id="view" style="display:flex;flex-direction:column;gap:12px"></div>
+  <div id="view"></div>
 </main>
 
 <div class="scrim" id="sheetWrap" hidden><div class="sheet" id="sheet" role="dialog"></div></div>
@@ -118,318 +156,12 @@ main{gap:12px;padding-top:0}
 <div id="printout"></div>
 
 <script src="../shared/classroom.js"></script>
-<script src="../shared/goalscore.js"></script>
-<script>
-const $=id=>document.getElementById(id);
-const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-const {ymd,addDays,today,parseDay}=GoalsCore;
-const short=s=>parseDay(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});
-const dayName=s=>parseDay(s).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
-const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-let toastT; const toast=m=>{const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2200);};
-
-// ---------- data on this tablet: activity log and accommodations (rosters come from Classroom setup)
-const AK='activity.v1', CK='accom.v1', PK='home.prefs';
-function loadA(){let a=null;try{a=JSON.parse(localStorage.getItem(AK))}catch(e){} a=a&&typeof a==='object'?a:{}; a.entries=Array.isArray(a.entries)?a.entries:[]; return a;}
-function loadC(){let c=null;try{c=JSON.parse(localStorage.getItem(CK))}catch(e){} c=c&&typeof c==='object'?c:{}; c.students=c.students&&typeof c.students==='object'?c.students:{}; return c;}
-let A=loadA(), C=loadC(), D=Classroom.load(), G=GoalsCore.load();
-const saveA=()=>{try{localStorage.setItem(AK,JSON.stringify(A))}catch(e){toast("Couldn't save. The tablet may be out of space.");}};
-const saveC=()=>{try{localStorage.setItem(CK,JSON.stringify(C))}catch(e){toast("Couldn't save. The tablet may be out of space.");}};
-let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
-let cls=P.cls==='all'||(P.cls&&D.classes[P.cls])?P.cls:'all';
-let tab=P.tab||'week', weekOff=0, actFilter='all', actStudent='', accView='student';
-const savePrefs=()=>{P.cls=cls;P.tab=tab;try{localStorage.setItem(PK,JSON.stringify(P))}catch(e){}};
-const classIds=()=>cls==='all'?Object.keys(D.classes):[cls];
-const inScope=c=>cls==='all'||c===cls;
-function nameAny(sid){for(const c of Object.keys(D.classes)){const n=Classroom.nameOf(D,c,sid); if(n) return n;} return '(removed student)';}
-const names=sids=>(sids||[]).map(nameAny).join(', ');
-const TYPES={parent:'Parent / guardian',student:'Student conference',behavior:'Behavior note'};
-const TSHORT={parent:'Parent',student:'Student',behavior:'Behavior'};
-const METHODS=['Call','Text','Email','Meeting','In person','Note home'];
-
-// ---------- header and sheets
-function renderHead(){
-  $('clsBtn').innerHTML=`<span>${cls==='all'?'All classes':esc((D.classes[cls]||{}).name)}</span><i>▾</i>`;
-  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===tab));
-}
-$('tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-t]');if(!b)return;tab=b.dataset.t;savePrefs();render();window.scrollTo(0,0);});
-$('clsBtn').addEventListener('click',()=>openSheet(`<h2>Show</h2><button type="button" class="item" data-c="all" aria-current="${cls==='all'}">All classes</button>`+
-  Object.keys(D.classes).map(c=>`<button type="button" class="item" data-c="${esc(c)}" aria-current="${c===cls}">${esc(D.classes[c].name)}</button>`).join(''),
-  el=>el.addEventListener('click',e=>{const b=e.target.closest('button[data-c]');if(!b)return;cls=b.dataset.c;actStudent='';savePrefs();closeSheet();render();})));
-function openSheet(html,wire){$('sheet').innerHTML=html;$('sheetWrap').hidden=false;$('sheet').scrollTop=0;if(wire)wire($('sheet'));}
-function closeSheet(){$('sheetWrap').hidden=true;$('sheet').innerHTML='';}
-$('sheetWrap').addEventListener('click',e=>{if(e.target===$('sheetWrap'))closeSheet();});
-document.addEventListener('pointerdown',e=>{const a=document.activeElement;
-  if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA')&&!e.target.closest('input,select,textarea,button,label')) a.blur();},true);
-
-function render(){
-  D=Classroom.load(); G=GoalsCore.load(); A=loadA(); C=loadC();
-  if(cls!=='all'&&!D.classes[cls]) cls='all';
-  renderHead();
-  ({week:renderWeek,activity:renderActivity,accom:renderAccom})[tab]();
-}
-
-// ================= THIS WEEK =================
-const isWeekend=()=>{const w=new Date().getDay();return w===0||w===6;};
-function monday(off){const d=new Date(); d.setHours(12); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd+7*(off+(isWeekend()?1:0))); return ymd(d);}
-function lapDays(){ // {day: [{cls,room,laps}]}
-  const out={}, pre=Classroom.LAPS;
-  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(!k||!k.startsWith(pre)) continue;
-    const [c,r,day]=k.slice(pre.length).split('|'); if(!inScope(c)) continue;
-    const s=JSON.parse(localStorage.getItem(k)); const n=s&&s.laps?s.laps.filter(l=>l.q||Object.keys(l.marks||{}).length).length:0;
-    if(n)(out[day]=out[day]||[]).push({cls:c,room:r,laps:n});}}catch(e){}
-  return out;
-}
-const goalLink=()=>`<a class="btn ghost" href="../goals/" style="min-height:40px;font-size:14px">Open Goals</a>`;
-function groupChecks(list){const m=new Map(); list.forEach(x=>{const k=x.goal.id; if(!m.has(k)) m.set(k,{goal:x.goal,sids:[],over:0}); const v=m.get(k); v.sids.push(x.sid); if(x.overdue) v.over++;}); return [...m.values()];}
-function renderWeek(){
-  const t=today(), mon=monday(weekOff), days=[0,1,2,3,4].map(i=>addDays(mon,i)), fri=days[4];
-  const checks=GoalsCore.checks(G).filter(x=>inScope(x.cls));
-  const fus=A.entries.filter(e=>inScope(e.cls)&&e.fu&&e.fu.date&&!e.fu.done);
-  const laps=lapDays();
-  const proj=GoalsCore.project(G,fri).filter(x=>inScope(x.cls));
-  const dueToday=checks.filter(x=>x.date<=t), overdue=checks.filter(x=>x.date<t);
-  const fuToday=fus.filter(e=>e.fu.date<=t);
-  const thisWeek=weekOff===0;
-  let h=`<div class="weekbar"><button class="ghost" id="wPrev" aria-label="Previous week">‹</button><h2>${thisWeek?(isWeekend()?'Coming week':'This week'):'Week of '+short(mon)} <span class="meta" style="font-weight:500">${short(mon)}–${short(fri)}</span></h2>${thisWeek?'':'<button class="ghost" id="wNow">Today</button>'}<button class="ghost" id="wNext" aria-label="Next week">›</button></div>`;
-  if(thisWeek) h+=`<div class="tiles">
-    <a class="tile ${overdue.length?'alert':''}" href="../goals/"><b>${dueToday.length}</b><span>goal checks due${overdue.length?' · '+overdue.length+' overdue':''}</span></a>
-    <button type="button" class="tile ${fuToday.some(e=>e.fu.date<t)?'alert':''}" id="tFu"><b>${fuToday.length}</b><span>follow-ups due</span></button>
-    <a class="tile" href="../lap/"><b>${(laps[t]||[]).reduce((a,x)=>a+x.laps,0)}</b><span>laps today</span></a></div>`;
-  days.forEach(d=>{
-    const isT=d===t, past=d<t;
-    // checks shown on their due day; anything overdue rolls onto today
-    const dc=groupChecks(isT?checks.filter(x=>x.date<=t):d>t?proj.filter(x=>x.date===d):[]);
-    const df=fus.filter(e=>isT?e.fu.date<=t:(e.fu.date===d&&!(d<t)));
-    const logged=G.logs.filter(l=>l.date===d&&G.goals[l.goal]&&inScope(G.goals[l.goal].cls));
-    const acts=A.entries.filter(e=>e.date===d&&inScope(e.cls));
-    const ld=laps[d]||[];
-    const doneBits=[];
-    if(logged.length) doneBits.push(logged.length+' goal check'+(logged.length===1?'':'s')+' logged');
-    if(ld.length) doneBits.push(ld.map(x=>x.laps+' lap'+(x.laps===1?'':'s')+' ('+esc((D.classes[x.cls]||{}).name||'')+' '+esc((D.rooms[x.room]||{}).name||'')+')').join(', '));
-    acts.forEach(e=>doneBits.push(esc(TSHORT[e.type]||'Note')+': '+esc(names(e.sids))));
-    h+=`<div class="card day ${isT?'today':''} ${past?'past':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${dc.length?(n=>`<span class="tag ${isT&&dc.some(x=>x.over)?'over':'due'}">${n} check${n===1?'':'s'}</span>`)(dc.reduce((a,x)=>a+x.sids.length,0)):''}</div>`;
-    dc.forEach(x=>{h+=`<a class="it" href="../goals/" style="text-decoration:none"><span class="k">Goal</span><span class="v"><b>${esc(x.goal.title)}</b>${cls==='all'?' <small>· '+esc((D.classes[x.goal.cls]||{}).name||'')+'</small>':''}<br>${esc(names(x.sids))}${x.over?` <span class="tag over">${x.over} overdue</span>`:''}</span></a>`;});
-    df.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
-    if(!dc.length&&!df.length&&!doneBits.length) h+=`<div class="done">${past?'Nothing recorded.':'Nothing scheduled.'}</div>`;
-    if(doneBits.length) h+=`<div class="done">✓ ${doneBits.join(' · ')}</div>`;
-    h+=`</div>`;
-  });
-  // coming up after this week: prep list
-  const after=addDays(fri,1), until=addDays(fri,14);
-  const later=[];
-  // first check after this week for each goal, students grouped
-  const firstAfter=new Map(); GoalsCore.project(G,until).filter(x=>inScope(x.cls)&&x.date>=after).forEach(x=>{const k=x.goal.id+'|'+x.sid; if(!firstAfter.has(k)) firstAfter.set(k,x);});
-  const byGD=new Map(); [...firstAfter.values()].forEach(x=>{const k=x.date+'|'+x.goal.id; if(!byGD.has(k)) byGD.set(k,{d:x.date,goal:x.goal,sids:[]}); byGD.get(k).sids.push(x.sid);});
-  byGD.forEach(x=>later.push({d:x.d,k:'Goal',v:`<b>${esc(x.goal.title)}</b><br>${esc(names(x.sids))}`,act:''}));
-  fus.filter(e=>e.fu.date>=after&&e.fu.date<=until).forEach(e=>later.push({d:e.fu.date,k:'Follow up',v:`<b>${esc(e.fu.text||'Follow up')}</b><br>${esc(names(e.sids))}`,act:e.id}));
-  Object.values(G.goals).filter(g=>!g.archived&&inScope(g.cls)).forEach(g=>(g.students||[]).forEach(sid=>{const e=GoalsCore.eff(g,sid);
-    if(e.status==='active'&&e.end&&e.end>=mon&&e.end<=until) later.push({d:e.end,k:'Goal ends',v:`<b>${esc(g.title)}</b><br>${esc(nameAny(sid))}`,act:''});
-    if(e.status==='active'&&e.start&&e.start>t&&e.start<=until) later.push({d:e.start,k:'Goal starts',v:`<b>${esc(g.title)}</b><br>${esc(nameAny(sid))}`,act:''});}));
-  later.sort((a,b)=>a.d<b.d?-1:1);
-  h+=`<div class="card"><h3>Coming up · next two weeks</h3>${later.length?later.slice(0,25).map(x=>x.act?`<button type="button" class="it" data-act="${esc(x.act)}"><span class="k">${esc(short(x.d))}</span><span class="v"><small>${esc(x.k)}</small> ${x.v}</span></button>`:`<a class="it" href="../goals/" style="text-decoration:none"><span class="k">${esc(short(x.d))}</span><span class="v"><small>${esc(x.k)}</small> ${x.v}</span></a>`).join(''):'<div class="done">Nothing scheduled yet.</div>'}</div>`;
-  // recent activity, last 7 days
-  const since=addDays(t,-7), feed=[];
-  A.entries.filter(e=>inScope(e.cls)&&e.date>=since&&e.date<=t).forEach(e=>feed.push({d:e.date,ts:e.updated||0,k:TSHORT[e.type]||'Note',v:`<b>${esc(names(e.sids))}</b> ${esc(e.summary||'').slice(0,90)}`,act:e.id}));
-  const gl={}; G.logs.filter(l=>l.date>=since&&l.date<=t&&G.goals[l.goal]&&inScope(G.goals[l.goal].cls)).forEach(l=>{const k=l.date+'|'+l.goal;(gl[k]=gl[k]||[]).push(l);});
-  Object.keys(gl).forEach(k=>{const [d,gid]=k.split('|'),ls=gl[k]; feed.push({d,ts:Math.max(...ls.map(l=>l.t||0)),k:'Goal',v:`<b>${esc(G.goals[gid].title)}</b> · ${ls.length} logged (${esc(names([...new Set(ls.map(l=>l.sid))]))})`,act:''});});
-  Object.keys(laps).filter(d=>d>=since&&d<=t).forEach(d=>laps[d].forEach(x=>feed.push({d,ts:0,k:'Laps',v:`${x.laps} lap${x.laps===1?'':'s'} · ${esc((D.classes[x.cls]||{}).name||'')} ${esc((D.rooms[x.room]||{}).name||'')}`,act:''})));
-  feed.sort((a,b)=>a.d<b.d?1:a.d>b.d?-1:b.ts-a.ts);
-  h+=`<div class="card feed"><h3>Recent activity · last 7 days</h3>${feed.length?feed.slice(0,20).map(x=>x.act?`<button type="button" class="it" data-act="${esc(x.act)}"><span class="k">${esc(short(x.d))}</span><span class="v"><small>${esc(x.k)}</small> ${x.v}</span></button>`:`<div class="it"><span class="k">${esc(short(x.d))}</span><span class="v"><small>${esc(x.k)}</small> ${x.v}</span></div>`).join(''):'<div class="done">Nothing in the last week.</div>'}</div>`;
-  $('view').innerHTML=h;
-  $('wPrev').addEventListener('click',()=>{weekOff--;renderWeek();});
-  $('wNext').addEventListener('click',()=>{weekOff++;renderWeek();});
-  if($('wNow')) $('wNow').addEventListener('click',()=>{weekOff=0;renderWeek();});
-  if($('tFu')) $('tFu').addEventListener('click',()=>{tab='activity';actFilter='fu';savePrefs();render();});
-  $('view').onclick=e=>{const b=e.target.closest('[data-act]'); if(b) editEntry(A.entries.find(x=>x.id===b.dataset.act),null,renderWeek);};
-}
-
-// ================= ACTIVITY LOG =================
-function renderActivity(){
-  const t=today();
-  let list=A.entries.filter(e=>inScope(e.cls));
-  if(actStudent) list=list.filter(e=>(e.sids||[]).includes(actStudent));
-  const nFu=list.filter(e=>e.fu&&e.fu.date&&!e.fu.done).length;
-  if(actFilter==='fu') list=list.filter(e=>e.fu&&e.fu.date&&!e.fu.done).sort((a,b)=>a.fu.date<b.fu.date?-1:1);
-  else{ if(actFilter!=='all') list=list.filter(e=>e.type===actFilter); list.sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:(b.updated||0)-(a.updated||0)); }
-  const studs=classIds().flatMap(c=>((D.classes[c]||{}).students||[]).map(s=>({id:s.id,name:s.name,c})));
-  let h=`<div class="bar"><button class="primary" id="newE">+ New entry</button><span class="grow"></span>
-    <select id="stuF" aria-label="Student" style="max-width:55%"><option value="">All students</option>${studs.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}${cls==='all'?' ('+esc(D.classes[s.c].name)+')':''}</option>`).join('')}</select></div>
-    <div class="filters" id="aF">${[['all','All'],['parent','Parent'],['student','Student'],['behavior','Behavior'],['fu','Follow-ups'+(nFu?' ('+nFu+')':'')]].map(([k,l])=>`<button type="button" data-f="${k}" aria-pressed="${actFilter===k}">${l}</button>`).join('')}</div>`;
-  if(!list.length) h+=`<div class="empty">${actFilter==='fu'?'No open follow-ups.':'No entries yet. Tap + New entry to log a contact, conference or note.'}</div>`;
-  let lastD='';
-  list.forEach(e=>{
-    const hd=actFilter==='fu'?'':e.date;
-    if(hd&&hd!==lastD){h+=`<div class="datehead">${hd===t?'Today':esc(dayName(hd))}</div>`; lastD=hd;}
-    const fu=e.fu&&e.fu.date?`<div class="fu">${e.fu.done?'<span class="tag ok">Done</span>':`<span class="tag ${e.fu.date<t?'over':e.fu.date===t?'due':''}">Follow up ${esc(short(e.fu.date))}</span>`} ${esc(e.fu.text||'')}</div>`:'';
-    h+=`<button type="button" class="entry" data-e="${esc(e.id)}"><div class="top"><span class="tag ${e.type}">${esc(TSHORT[e.type]||'Note')}${e.method?' · '+esc(e.method):''}</span><span class="who">${esc(names(e.sids))}${e.with?' <span class="meta">with '+esc(e.with)+'</span>':''}</span>${actFilter==='fu'?`<span class="meta">${esc(short(e.date))}</span>`:''}</div>
-      ${e.summary?`<div class="sum">${esc(e.summary)}</div>`:''}${fu}</button>`;
-  });
-  $('view').innerHTML=h;
-  $('stuF').value=actStudent;
-  $('stuF').addEventListener('change',e=>{actStudent=e.target.value;renderActivity();});
-  $('aF').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(b){actFilter=b.dataset.f;renderActivity();}});
-  $('newE').addEventListener('click',()=>editEntry(null,actStudent?[actStudent]:null,renderActivity));
-  $('view').onclick=e=>{const b=e.target.closest('[data-e]'); if(b) editEntry(A.entries.find(x=>x.id===b.dataset.e),null,renderActivity);};
-}
-
-function editEntry(en,preSids,after){
-  const isNew=!en;
-  let ec=en?en.cls:(cls!=='all'?cls:(preSids&&preSids[0]?Object.keys(D.classes).find(c=>Classroom.nameOf(D,c,preSids[0])):'')||Object.keys(D.classes)[0]);
-  const d=en?JSON.parse(JSON.stringify(en)):{id:uid('a'),cls:ec,type:'parent',method:'Call',with:'',sids:(preSids||[]).slice(),date:today(),summary:'',outcome:'',fu:null};
-  const fu=d.fu||{date:'',text:'',done:false};
-  openSheet(`<h2>${isNew?'New entry':'Edit entry'}</h2>
-    <div class="field"><span class="lbl">Type</span><div class="seg" id="eType">${Object.keys(TYPES).map(k=>`<button type="button" data-k="${k}" aria-pressed="${d.type===k}">${TYPES[k]}</button>`).join('')}</div></div>
-    ${Object.keys(D.classes).length>1?`<div class="field"><label for="eCls">Class</label><select id="eCls">${Object.keys(D.classes).map(c=>`<option value="${esc(c)}">${esc(D.classes[c].name)}</option>`).join('')}</select></div>`:''}
-    <div class="field"><span class="lbl">Students</span><div class="chips" id="eStu"></div></div>
-    <div class="field" id="eMethW"><span class="lbl">How</span><div class="chips" id="eMeth">${METHODS.map(m=>`<button type="button" data-m="${m}" aria-pressed="${d.method===m}">${m}</button>`).join('')}</div></div>
-    <div class="field" id="eWithW"><label for="eWith">With</label><input id="eWith" type="text" value="${esc(d.with||'')}" placeholder="e.g. Mom, grandfather, guardian" enterkeyhint="next"></div>
-    <div class="field"><label for="eDate">Date</label><input id="eDate" type="date" value="${esc(d.date)}" max="${today()}" style="width:180px"></div>
-    <div class="field"><label for="eSum" id="eSumL">What was discussed</label><textarea id="eSum">${esc(d.summary)}</textarea></div>
-    <div class="field"><label for="eOut">Outcome / next steps (optional)</label><textarea id="eOut" style="min-height:60px">${esc(d.outcome||'')}</textarea></div>
-    <div class="field"><span class="lbl">Follow-up reminder (optional)</span>
-      <div class="bar"><input id="fDate" type="date" value="${esc(fu.date||'')}" aria-label="Follow-up date" style="width:180px"><input id="fText" type="text" class="grow" value="${esc(fu.text||'')}" placeholder="e.g. Call back about the field trip form" enterkeyhint="done"></div>
-      ${fu.date?`<label class="bar" style="gap:8px;font-size:16px"><input type="checkbox" id="fDone" ${fu.done?'checked':''} style="width:22px;height:22px"> Follow-up done</label>`:''}</div>
-    <div id="eErr" class="note bad" hidden style="margin:0 6px"></div>
-    ${isNew?'':`<div class="bar" style="padding:6px"><button class="plain" id="eDel" style="color:var(--not)">Delete entry…</button></div><div class="note" id="eDelC" hidden style="margin:0 6px">Delete this entry?<div class="bar" style="margin-top:8px"><button class="danger" id="eDelY">Delete</button><button class="ghost" id="eDelN">Keep</button></div></div>`}
-    <div class="sticky-actions"><button class="ghost" id="eCancel">Cancel</button><button class="primary" id="eSave">${isNew?'Add entry':'Save'}</button></div>`,
-  el=>{
-    const sel=d.sids.slice();
-    const drawStu=()=>{const r=(D.classes[d.cls]||{}).students||[];
-      el.querySelector('#eStu').innerHTML=r.length?r.map(s=>`<button type="button" data-sid="${esc(s.id)}" aria-pressed="${sel.includes(s.id)}">${esc(s.name)}</button>`).join(''):'<span class="hint">This class has no students yet.</span>';};
-    const typeUI=()=>{el.querySelectorAll('#eType button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===d.type));
-      el.querySelector('#eMethW').hidden=d.type!=='parent'; el.querySelector('#eWithW').hidden=d.type!=='parent';
-      el.querySelector('#eSumL').textContent=d.type==='behavior'?'What happened (brief and factual)':d.type==='student'?'What you talked about':'What was discussed';};
-    drawStu(); typeUI();
-    if(el.querySelector('#eCls')){el.querySelector('#eCls').value=d.cls; el.querySelector('#eCls').addEventListener('change',e=>{d.cls=e.target.value; sel.length=0; drawStu();});}
-    el.querySelector('#eType').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(b){d.type=b.dataset.k;typeUI();}});
-    el.querySelector('#eStu').addEventListener('click',e=>{const b=e.target.closest('[data-sid]');if(!b)return;const i=sel.indexOf(b.dataset.sid);if(i<0)sel.push(b.dataset.sid);else sel.splice(i,1);b.setAttribute('aria-pressed',i<0);});
-    el.querySelector('#eMeth').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;d.method=b.dataset.m;el.querySelectorAll('#eMeth button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.m===d.method));});
-    el.querySelectorAll('input[type=text]').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();i.blur();}}));
-    el.querySelector('#eCancel').addEventListener('click',closeSheet);
-    el.querySelector('#eSave').addEventListener('click',()=>{
-      const err=m=>{const x=el.querySelector('#eErr');x.textContent=m;x.hidden=false;};
-      d.sids=sel.slice(); d.date=el.querySelector('#eDate').value||today(); d.summary=el.querySelector('#eSum').value.trim(); d.outcome=el.querySelector('#eOut').value.trim();
-      if(d.type==='parent') d.with=el.querySelector('#eWith').value.trim(); else {delete d.method; delete d.with;}
-      if(d.type==='parent'&&!d.method) d.method='Call';
-      const fd=el.querySelector('#fDate').value, ft=el.querySelector('#fText').value.trim(), fdn=el.querySelector('#fDone');
-      if(fd||ft){ if(!fd) return err('Pick a date for the follow-up, or clear its text.');
-        d.fu={date:fd,text:ft,done:fdn?fdn.checked:false}; if(d.fu.done&&!(en&&en.fu&&en.fu.done)) d.fu.doneDate=today(); else if(en&&en.fu&&en.fu.doneDate&&d.fu.done) d.fu.doneDate=en.fu.doneDate; }
-      else d.fu=null;
-      if(!d.sids.length) return err('Pick at least one student.');
-      if(!d.summary) return err('Add a short summary.');
-      d.updated=Date.now();
-      A=loadA(); const i=A.entries.findIndex(x=>x.id===d.id); if(i<0) A.entries.push(d); else A.entries[i]=d;
-      saveA(); closeSheet(); toast(isNew?'Entry added':'Saved'); (after||render)();
-    });
-    if(!isNew){
-      el.querySelector('#eDel').addEventListener('click',()=>el.querySelector('#eDelC').hidden=false);
-      el.querySelector('#eDelN').addEventListener('click',()=>el.querySelector('#eDelC').hidden=true);
-      el.querySelector('#eDelY').addEventListener('click',()=>{A=loadA();A.entries=A.entries.filter(x=>x.id!==d.id);saveA();closeSheet();toast('Deleted');(after||render)();});
-    }
-  });
-}
-
-// ================= ACCOMMODATIONS =================
-const accOf=sid=>C.students[sid]||[];
-function library(){const m=new Map(); Object.values(C.students).forEach(list=>list.forEach(a=>{const k=a.text.trim().toLowerCase(); if(!m.has(k)) m.set(k,{text:a.text,n:0}); m.get(k).n++;}));
-  return [...m.values()].sort((a,b)=>b.n-a.n||a.text.localeCompare(b.text));}
-function renderAccom(){
-  let h=`<div class="bar"><div class="seg" id="accV"><button type="button" data-v="student" aria-pressed="${accView==='student'}">By student</button><button type="button" data-v="acc" aria-pressed="${accView==='acc'}">By accommodation</button></div><span class="grow"></span><button class="ghost" id="accPrint">Print</button></div>
-    <p class="hint">A reference list. Tap a student to add or change their accommodations.</p>`;
-  const ids=classIds();
-  ids.forEach(c=>{const cl=D.classes[c], r=(cl&&cl.students)||[];
-    if(ids.length>1&&!r.length) return;
-    if(ids.length>1) h+=`<div class="clshead">${esc(cl.name)}</div>`;
-    if(!r.length){h+=`<div class="empty">No students in ${esc(cl.name)}. Add them in Classroom setup.</div>`;return;}
-    if(accView==='student'){
-      r.forEach(s=>{const list=accOf(s.id);
-        h+=`<button type="button" class="stu" data-s="${esc(s.id)}" data-c="${esc(c)}"><b>${esc(s.name)}</b>${list.length?`<div class="acc">${list.map(a=>`<span>${esc(a.text)}${a.note?' <small>· '+esc(a.note)+'</small>':''}</span>`).join('')}</div>`:'<span class="meta">None listed · tap to add</span>'}</button>`;});
-    } else {
-      const m=new Map(); r.forEach(s=>accOf(s.id).forEach(a=>{const k=a.text.trim().toLowerCase(); if(!m.has(k)) m.set(k,{text:a.text,who:[]}); m.get(k).who.push(s);}));
-      const items=[...m.values()].sort((a,b)=>b.who.length-a.who.length||a.text.localeCompare(b.text));
-      if(!items.length) h+=`<div class="empty">No accommodations listed for ${esc(cl.name)} yet.</div>`;
-      items.forEach(x=>{h+=`<button type="button" class="stu" data-a="${esc(x.text)}" data-c="${esc(c)}"><b>${esc(x.text)} <span class="meta" style="font-weight:500">· ${x.who.length} of ${r.length}</span></b><div class="acc">${x.who.map(s=>`<span>${esc(s.name)}</span>`).join('')}</div></button>`;});
-    }
-  });
-  $('view').innerHTML=h;
-  $('accV').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){accView=b.dataset.v;renderAccom();}});
-  $('accPrint').addEventListener('click',printAccom);
-  $('view').onclick=e=>{const s=e.target.closest('[data-s]'), a=e.target.closest('[data-a]');
-    if(s) editAccom(s.dataset.s,s.dataset.c); if(a) whoHas(a.dataset.a,a.dataset.c);};
-}
-function editAccom(sid,c){
-  const list=JSON.parse(JSON.stringify(accOf(sid)));
-  openSheet(`<h2>${esc(Classroom.nameOf(D,c,sid))}</h2>
-    <div class="items" id="accList"></div>
-    <div class="field"><label for="accNew">Add an accommodation</label><div class="bar"><input id="accNew" type="text" class="grow" placeholder="Type one, then tap Add" enterkeyhint="done"><button class="primary" id="accAdd">Add</button></div></div>
-    <div class="field" id="sugW"><span class="lbl">Used for other students · tap to add</span><div class="chips" id="sug"></div></div>
-    <div class="sticky-actions"><button class="ghost" id="accCancel">Cancel</button><button class="primary" id="accSave">Save</button></div>`,
-  el=>{
-    const draw=()=>{
-      el.querySelector('#accList').innerHTML=list.length?list.map((a,i)=>`<div class="row"><div class="t"><b>${esc(a.text)}</b><input type="text" data-note="${i}" value="${esc(a.note||'')}" placeholder="Note (optional), e.g. math only" enterkeyhint="done"></div><button type="button" class="x" data-rm="${i}">Remove</button></div>`).join(''):'<div class="row"><span class="meta">None listed yet.</span></div>';
-      const have=new Set(list.map(a=>a.text.trim().toLowerCase())), sug=library().filter(x=>!have.has(x.text.trim().toLowerCase()));
-      el.querySelector('#sugW').hidden=!sug.length;
-      el.querySelector('#sug').innerHTML=sug.map(x=>`<button type="button" class="sug" data-t="${esc(x.text)}">+ ${esc(x.text)}</button>`).join('');
-    };
-    draw();
-    const add=t=>{t=t.trim(); if(!t) return; if(list.some(a=>a.text.trim().toLowerCase()===t.toLowerCase())){toast('Already listed');return;} list.push({id:uid('c'),text:t,note:''}); draw();};
-    el.querySelector('#accAdd').addEventListener('click',()=>{add(el.querySelector('#accNew').value); el.querySelector('#accNew').value='';});
-    el.querySelector('#accNew').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el.querySelector('#accAdd').click();}});
-    el.querySelector('#sug').addEventListener('click',e=>{const b=e.target.closest('[data-t]'); if(b) add(b.dataset.t);});
-    el.querySelector('#accList').addEventListener('input',e=>{const i=e.target.dataset.note; if(i!=null) list[+i].note=e.target.value;});
-    el.querySelector('#accList').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();e.target.blur();}});
-    el.querySelector('#accList').addEventListener('click',e=>{const b=e.target.closest('[data-rm]'); if(!b) return;
-      if(b.classList.contains('sure')){list.splice(+b.dataset.rm,1); draw();}
-      else{b.classList.add('sure');b.textContent='Tap to remove';setTimeout(()=>{if(b.isConnected){b.classList.remove('sure');b.textContent='Remove';}},3000);}});
-    el.querySelector('#accCancel').addEventListener('click',closeSheet);
-    el.querySelector('#accSave').addEventListener('click',()=>{const pending=el.querySelector('#accNew').value; if(pending.trim()) add(pending);
-      C=loadC(); list.forEach(a=>{a.note=(a.note||'').trim();}); if(list.length) C.students[sid]=list; else delete C.students[sid];
-      C.updated=Date.now(); saveC(); closeSheet(); toast('Saved'); renderAccom();});
-  });
-}
-function whoHas(text,c){
-  const r=(D.classes[c]||{}).students||[], k=text.trim().toLowerCase();
-  const sel=r.filter(s=>accOf(s.id).some(a=>a.text.trim().toLowerCase()===k)).map(s=>s.id);
-  openSheet(`<h2>${esc(text)}</h2><div class="hint" style="padding:0 6px">${esc((D.classes[c]||{}).name)} · tap students to add or remove</div>
-    <div class="field"><label for="wRen">Wording (changes it for everyone in this class)</label><input id="wRen" type="text" value="${esc(text)}" enterkeyhint="done"></div>
-    <div class="field"><div class="chips" id="wStu">${r.map(s=>`<button type="button" data-sid="${esc(s.id)}" aria-pressed="${sel.includes(s.id)}">${esc(s.name)}</button>`).join('')}</div></div>
-    <div class="sticky-actions"><button class="ghost" id="wCancel">Cancel</button><button class="primary" id="wSave">Save</button></div>`,
-  el=>{
-    el.querySelector('#wStu').addEventListener('click',e=>{const b=e.target.closest('[data-sid]');if(!b)return;const i=sel.indexOf(b.dataset.sid);if(i<0)sel.push(b.dataset.sid);else sel.splice(i,1);b.setAttribute('aria-pressed',i<0);});
-    el.querySelector('#wRen').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur();}});
-    el.querySelector('#wCancel').addEventListener('click',closeSheet);
-    el.querySelector('#wSave').addEventListener('click',()=>{
-      const nt=el.querySelector('#wRen').value.trim()||text; C=loadC();
-      r.forEach(s=>{let list=C.students[s.id]||[]; const i=list.findIndex(a=>a.text.trim().toLowerCase()===k);
-        if(sel.includes(s.id)){ if(i<0) list.push({id:uid('c'),text:nt,note:''}); else list[i].text=nt; }
-        else if(i>=0) list.splice(i,1);
-        if(list.length) C.students[s.id]=list; else delete C.students[s.id];});
-      C.updated=Date.now(); saveC(); closeSheet(); toast('Saved'); renderAccom();});
-  });
-}
-function printAccom(){
-  let h=''; classIds().forEach(c=>{const cl=D.classes[c]; if(!cl) return;
-    h+=`<h1>Accommodations · ${esc(cl.name)}</h1><table><thead><tr><th style="width:28%">Student</th><th>Accommodations</th></tr></thead><tbody>`+
-      (cl.students||[]).map(s=>`<tr><td>${esc(s.name)}</td><td>${accOf(s.id).map(a=>esc(a.text)+(a.note?' ('+esc(a.note)+')':'')).join('; ')||'—'}</td></tr>`).join('')+'</tbody></table>';});
-  $('printout').innerHTML=h; setTimeout(()=>window.print(),50);
-}
-
-// ---------- menu
-$('menuBtn').addEventListener('click',()=>openSheet(`<button class="item" id="mExport">Export activity & accommodations</button>
-  <button class="item" id="mImport">Import backup…</button>
-  <button class="item" id="mCsv">Copy activity log as CSV (for Sheets)</button>
-  <hr><a class="item btn" href="../goals/">Student goals</a><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>`,
-  el=>{el.querySelector('#mExport').addEventListener('click',()=>HomeBackup.exportSheet());
-    el.querySelector('#mImport').addEventListener('click',()=>HomeBackup.importSheet());
-    el.querySelector('#mCsv').addEventListener('click',()=>HomeBackup.copyCsv());}));
-
-addEventListener('storage',e=>{if([AK,CK,'goals.v1','classroom.v1'].includes(e.key)) render();});
-addEventListener('pageshow',render);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible') render();});
-render();
-</script>
+<script src="../shared/iepcore.js"></script>
+<script src="main.js"></script>
+<script src="students.js"></script>
+<script src="activity.js"></script>
 <script src="backup.js"></script>
+<script>render();</script>
 <script src="../shared/version.js"></script>
 <script src="../shared/app.js"></script>
 </body>

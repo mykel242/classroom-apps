@@ -60,12 +60,13 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
 </head>
 <body>
 <main>
-  <div class="bar"><a class="btn plain" href="../lap/" style="padding:0 4px">‹ Lap Tracker</a><a class="btn plain" href="../home/" style="padding:0 4px">Home</a><a class="btn plain" href="../goals/" style="padding:0 4px">Goals</a><span class="grow"></span><span class="saved" id="saved"></span></div>
+  <div class="bar"><a class="btn plain" href="../lap/" style="padding:0 4px">‹ Lap Tracker</a><a class="btn plain" href="../home/" style="padding:0 4px">Home</a><span class="grow"></span><span class="saved" id="saved"></span></div>
   <h1>Classroom setup</h1>
   <div class="seg tabs" id="tabs">
     <button type="button" data-t="classes" aria-pressed="true">Classes</button>
     <button type="button" data-t="seating" aria-pressed="false">Seating charts</button>
     <button type="button" data-t="rooms" aria-pressed="false">Rooms</button>
+    <button type="button" data-t="calendar" aria-pressed="false">Calendar</button>
     <button type="button" data-t="backup" aria-pressed="false">Backup</button>
   </div>
 
@@ -133,6 +134,19 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
     <p class="hint">Grid: rows of desks, row A at the front. Pods: groups of desks. List: no seats, students in roster order.</p>
   </section>
 
+  <!-- CALENDAR -->
+  <section id="tab-calendar" class="panel" hidden>
+    <h2>School year</h2>
+    <div class="bar"><input id="yStart" type="date" aria-label="First day of school"><span class="hint">to</span><input id="yEnd" type="date" aria-label="Last day of school"></div>
+    <h2 style="margin-top:8px">Grading periods</h2>
+    <div id="gps" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="bar"><button class="ghost" id="addGp">+ Add grading period</button></div>
+    <h2 style="margin-top:8px">Quarters</h2>
+    <p class="hint">Worked out by splitting the school year into four equal parts. Used for goals measured "per quarter".</p>
+    <div id="qtrs" class="hint"></div>
+    <p class="hint" id="calMsg"></p>
+  </section>
+
   <!-- BACKUP -->
   <section id="tab-backup" class="panel" hidden>
     <h2>Export</h2>
@@ -179,6 +193,7 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
 
 <script src="../shared/classroom.js"></script>
 <script src="../shared/backup.js"></script>
+<script src="../shared/iepcore.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
@@ -191,8 +206,8 @@ const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 // -------- tabs
 function showTab(t){
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));
-  ['classes','seating','rooms','backup'].forEach(x=>$('tab-'+x).hidden=x!==t);
-  fresh(); ({classes:renderClasses,seating:renderSeating,rooms:renderRooms,backup:renderBackup})[t]();
+  ['classes','seating','rooms','calendar','backup'].forEach(x=>$('tab-'+x).hidden=x!==t);
+  fresh(); ({classes:renderClasses,seating:renderSeating,rooms:renderRooms,calendar:renderCalendar,backup:renderBackup})[t]();
   try{sessionStorage.setItem('setupTab',t)}catch(e){}
 }
 $('tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-t]'); if(b) showTab(b.dataset.t);});
@@ -471,6 +486,39 @@ $('undoBtn').addEventListener('click',()=>{
   Object.keys(u.laps||{}).forEach(k=>{try{const v=u.laps[k]; if(v===null) localStorage.removeItem(Classroom.LAPS+k); else localStorage.setItem(Classroom.LAPS+k,v);}catch(e){}});
   try{localStorage.removeItem(UNDO_KEY);}catch(e){} renderBackup(); $('expMsg').textContent='Import undone.';
 });
+
+// -------- school calendar (changes save as you make them)
+const fmtD=s=>s?new Date(s+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
+function cal(){D.calendar=D.calendar||{start:'',end:'',periods:[]}; D.calendar.periods=D.calendar.periods||[]; return D.calendar;}
+function renderCalendar(){
+  const c=cal();
+  $('yStart').value=c.start||''; $('yEnd').value=c.end||'';
+  $('gps').innerHTML=c.periods.length?c.periods.map((p,i)=>`<div class="bar" data-i="${i}" style="flex-wrap:wrap">
+      <input type="text" data-f="name" value="${esc(p.name)}" style="width:160px" aria-label="Name" enterkeyhint="done">
+      <input type="date" data-f="start" value="${esc(p.start)}" aria-label="Start"><span class="hint">to</span><input type="date" data-f="end" value="${esc(p.end)}" aria-label="End">
+      <button type="button" class="plain gpdel" style="color:var(--not);padding:0 6px">Remove</button></div>`).join('')
+    :'<p class="hint">No grading periods yet. Add your three marking periods with their dates.</p>';
+  const q=quarters(c); $('qtrs').innerHTML=q.length?q.map(x=>`${esc(x.name)}: ${esc(fmtD(x.start))} – ${esc(fmtD(x.end))}`).join('<br>'):'Set the school year dates to see quarters.';
+  const prob=calProblems(c); $('calMsg').textContent=prob; $('calMsg').style.color=prob?'var(--not)':'';
+}
+const quarters=c=>IEP.quarters(c);
+function calProblems(c){
+  if(c.start&&c.end&&c.end<=c.start) return 'The last day of school is before the first day.';
+  for(const p of c.periods){ if(!p.start||!p.end) return (p.name||'A grading period')+' needs both dates.'; if(p.end<p.start) return p.name+' ends before it starts.'; }
+  const s=c.periods.slice().sort((a,b)=>a.start<b.start?-1:1);
+  for(let i=1;i<s.length;i++) if(s[i].start<=s[i-1].end) return s[i-1].name+' and '+s[i].name+' overlap.';
+  return '';}
+const saveCal=()=>{fresh(); const c=cal(); c.start=$('yStart').value; c.end=$('yEnd').value;
+  c.periods=[...document.querySelectorAll('#gps [data-i]')].map((row,i)=>({id:(D.calendar.periods[i]||{}).id||newId('gp'),name:row.querySelector('[data-f=name]').value.trim()||('Period '+(i+1)),start:row.querySelector('[data-f=start]').value,end:row.querySelector('[data-f=end]').value}))
+    .sort((a,b)=>(a.start||'9')<(b.start||'9')?-1:1);
+  commit(); renderCalendar();};
+['yStart','yEnd'].forEach(id=>$(id).addEventListener('change',saveCal));
+$('gps').addEventListener('change',saveCal);
+$('gps').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();e.target.blur();}});
+$('gps').addEventListener('click',e=>{const b=e.target.closest('.gpdel'); if(!b) return; b.closest('[data-i]').remove(); saveCal();});
+$('addGp').addEventListener('click',()=>{fresh(); const c=cal(); const last=c.periods[c.periods.length-1];
+  c.periods.push({id:newId('gp'),name:'Grading period '+(c.periods.length+1),start:'',end:''}); Classroom.save(D); renderCalendar();
+  const rows=document.querySelectorAll('#gps [data-i]'); const r=rows[rows.length-1]; if(r) r.querySelector('[data-f=start]').focus();});
 
 let t0='classes'; try{t0=sessionStorage.getItem('setupTab')||'classes'}catch(e){} if(!$('tab-'+t0)) t0='classes';
 showTab(t0);

@@ -24,7 +24,7 @@
   // laps: {'class|room|YYYY-MM-DD': session}
   function exportDoc(d,build,laps){
     const doc={app:'classroom-setup',format:FORMAT,exported:new Date().toISOString(),build:build||null,
-      data:{classes:d.classes,rooms:d.rooms,defaultRoom:d.defaultRoom||{},charts:d.charts||{}}};
+      data:{classes:d.classes,rooms:d.rooms,defaultRoom:d.defaultRoom||{},charts:d.charts||{},calendar:d.calendar||null}};
     if(laps&&Object.keys(laps).length) doc.laps=laps;
     return doc;
   }
@@ -80,6 +80,14 @@
       if(!out.classes[c]||!out.rooms[r]||!ch||typeof ch!=='object'){skipped++;return;}
       out.charts[k]=cleanChart(ch,out.rooms[r],out.classes[c],warnings,`${out.classes[c].name} · ${out.rooms[r].name}`);
     });
+    // school calendar: year dates and grading periods
+    const cal=src.calendar, okDay=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
+    if(cal&&typeof cal==='object'){
+      const periods=(Array.isArray(cal.periods)?cal.periods:[]).filter(p=>p&&okDay(p.start)&&okDay(p.end)&&p.start<=p.end)
+        .map((p,i)=>({id:str(p.id)||('gp'+i),name:str(p.name)||('Period '+(i+1)),start:p.start,end:p.end})).sort((a,b)=>a.start<b.start?-1:1);
+      if(okDay(cal.start)&&okDay(cal.end)&&cal.start<cal.end) out.calendar={start:cal.start,end:cal.end,periods};
+      else if(periods.length) out.calendar={start:periods[0].start,end:periods[periods.length-1].end,periods};
+    }
     if(skipped) warnings.push(`${skipped} damaged or unknown item${skipped>1?'s were':' was'} skipped.`);
     return out;
   }
@@ -233,6 +241,14 @@
       if(keep) l.push(`${plural(keep,'day')} differ; this tablet's copy is kept`);
       if(over) l.push(`${plural(over,'day')} differ; replaced with the file's copy`);
       sum.push({title:'Saved laps',lines:l.length?l:['Nothing to add']});
+    }
+    // school calendar: Replace takes the file's; Merge keeps this tablet's unless it has none
+    const descCal=c=>c?`${c.start} to ${c.end}, ${c.periods.length} grading period${c.periods.length===1?'':'s'}`:'none';
+    if(inc.calendar||cur.calendar){
+      const useFile=inc.calendar&&(!merge||!cur.calendar);
+      res.calendar=useFile?JSON.parse(JSON.stringify(inc.calendar)):(cur.calendar||null);
+      if(useFile&&JSON.stringify(inc.calendar)!==JSON.stringify(cur.calendar||null)) sum.push({title:'School calendar',lines:[`Set to ${descCal(inc.calendar)}`]});
+      else if(inc.calendar&&JSON.stringify(inc.calendar)!==JSON.stringify(cur.calendar)) sum.push({title:'School calendar',lines:['Kept this tablet\'s calendar (the file has a different one)']});
     }
     return {result:res,lapWrites,summary:sum,warnings:warn};
   }
