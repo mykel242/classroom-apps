@@ -77,7 +77,53 @@
     [n,...n.split(/\s+/).filter(p=>p.length>=2)].forEach(p=>{ s=s.replace(new RegExp('(^|[^\\p{L}])'+esc(p)+'(?:\\s+'+n.split(/\s+/).slice(1).map(esc).join('\\s+')+')?(?=$|[^\\p{L}])','gu'),'$1{{student}}'); });
     return s.replace(/\{\{student\}\}(\s+\{\{student\}\})+/g,'{{student}}'); }
 
+  // ---- gender-neutral pronouns (he/she/him/her/his/hers/himself/herself -> they/them/their/theirs/themselves)
+  const keepCase=(from,to)=>from[0]===from[0].toUpperCase()?to[0].toUpperCase()+to.slice(1):to;
+  const VERB_FIX={is:'are',was:'were',has:'have',does:'do',"isn't":"aren't","wasn't":"weren't","doesn't":"don't","hasn't":"haven't"};
+  const NOT_VERB=new Set(['will','can','could','would','should','may','might','must','did','also','then','and','or','will,','to']);
+  function agree(w){ const l=w.toLowerCase(); if(VERB_FIX[l]) return keepCase(w,VERB_FIX[l]); if(NOT_VERB.has(l)) return w;
+    if(/ies$/.test(l)&&l.length>4) return w.slice(0,-3)+'y';
+    if(/(ss|sh|ch|x|o)es$/.test(l)) return w.slice(0,-2);
+    if(/[^su]s$/.test(l)&&l.length>3) return w.slice(0,-1);
+    return w; }
+  // "her" is "them" after a verb that takes a person (help her, prompt her) or before a non-noun (to her, with her and),
+  // otherwise "their" (her level, her notes, to her notes)
+  const OBJ_VERB=/\b(help|helps|helping|give|gives|given|giving|provide|provides|provided|prompt|prompts|prompted|ask|asks|asked|allow|allows|allowed|support|supports|supporting|assist|assists|assisting|encourage|encourages|remind|reminds|show|shows|teach|teaches|tell|tells|let|lets|letting|have|make|makes|motivate|praise|redirect|redirects|cue|cues|cueing|offer|offers|offered|read|reads|model|models|guide|guides|engage|engages|call|calls|seat|seats)\s*$/i;
+  const NOUNISH=/^(own|ability|abilities|work|writing|reading|thinking|answers?|peers?|teachers?|level|notes?|best|ideas?|responses?|name|hand|seat|materials?|goals?|class|classmates|understanding|behaviou?r|attention|time|turn|voice)$/i;
+  const NOT_NOUN=/^(and|or|but|so|to|with|in|on|at|for|by|from|as|the|a|an|that|when|if|during|before|after|until|about|into|through|over|under|while|because|is|was|will|can|to)$/i;
+  function neutral(text,mark){ const M=mark?(w=>'\u0001'+w+'\u0002'):(w=>w);
+    let s=String(text||'');
+    s=s.replace(/\b(he|she)\b(\s+(?:\w+ly\s+)?)([A-Za-z']+)/gi,(m,p,gap,v)=>M(keepCase(p,'they'))+gap+(agree(v)!==v?M(agree(v)):v));
+    s=s.replace(/\b(he|she)\b/gi,p=>M(keepCase(p,'they')));
+    s=s.replace(/\b(himself|herself)\b/gi,p=>M(keepCase(p,'themselves')));
+    s=s.replace(/\bhers\b/gi,p=>M(keepCase(p,'theirs')));
+    s=s.replace(/\bhim\b/gi,p=>M(keepCase(p,'them')));
+    s=s.replace(/\bhis\b/gi,p=>M(keepCase(p,'their')));
+    s=s.replace(/\bher\b(?=(\s*)([A-Za-z]*))/gi,(p,sp,next,off,all)=>{ const before=all.slice(0,off);
+      const obj=!next||NOT_NOUN.test(next)||(OBJ_VERB.test(before)&&!NOUNISH.test(next));
+      return M(keepCase(p,obj?'them':'their')); });
+    return s; }
+
+  // ---- capitalized words mid-sentence that may be a name left behind
+  const OK_CAPS=new Set(('Within Given When With Using Speech Language Classroom Math Mathematics ELA English Spanish Science Social Studies Reading Writing '+
+    'Teacher Made Provider Observations Observation Materials Assessment Task Tasks Standardized Test Portfolios Class Activities Common Core State Standards CCLS NYS New York IEP Student I January February March April May June July August September October November December '+
+    'Monday Tuesday Wednesday Thursday Friday Mr Mrs Ms Dr WH The A An In On By For As If To During After Before Once Twice Then And Or But Illustrative Lexile Fountas Pinnell Wilson Fundations SETSS ICT Google Chromebook iReady Zearn Grade Unit').split(' '));
+  function suspects(text){ const out=new Set(); const t=String(text||'').replace(/\{\{student\}\}/g,'');
+    t.replace(/(?<=[^.!?:\n]\s)([A-Z](?:[a-z]+(?:[-'][A-Z]?[a-z]+)?|['’][A-Z][a-z]+))/g,(m,w)=>{ if(!OK_CAPS.has(w)&&!OK_CAPS.has(w.replace(/s$/,''))) out.add(w); return m; });
+    return [...out]; }
+
+  // ---- the cleaned format the laptop page produces and the tablet reads back
+  function format(goals){ return goals.map((g,i)=>[`GOAL ${i+1}`,`Area: ${g.area||''}`,`Goal: ${g.text}`,`Criteria: ${g.iep.crit||''}`,`Method: ${g.iep.meth||''}`,`Schedule: ${g.iep.sched||''}`].join('\n')).join('\n\n')+'\n'; }
+  const isClean=raw=>/^GOAL\s+\d+\s*$/m.test(String(raw||''))&&/^Goal:\s/m.test(String(raw||''));
+  function parseClean(raw){
+    const blocks=String(raw).replace(/\r/g,'').split(/^GOAL\s+\d+\s*$/m).slice(1);
+    const goals=blocks.map(b=>{const f={}; let k=null; b.split('\n').forEach(l=>{const m=/^(Area|Goal|Criteria|Method|Schedule):\s?(.*)$/.exec(l); if(m){k=m[1].toLowerCase(); f[k]=m[2].trim();} else if(k&&l.trim()) f[k]+=' '+l.trim();}); return f;});
+    return {counts:{goals:goals.length,criteria:goals.length,methods:goals.length,schedules:goals.length},mismatch:false,clean:true,
+      goals:goals.map(f=>{ const pc=parseCrit(f.criteria), ps=parseSched(f.schedule), flags=[...pc.flags,...ps.flags]; if(!f.area) flags.push('area');
+        return {area:f.area||'',text:f.goal||'',criteria:pc.criteria,methods:parseMeth(f.method),sched:ps.sched,iep:{crit:f.criteria||'',meth:f.method||'',sched:f.schedule||''},flags}; })}; }
+
   function parse(raw,name){
+    if(isClean(raw)){ const r=parseClean(raw); r.goals.forEach(g=>{g.text=[].concat(name||[]).reduce((t,n)=>unname(t,n),g.text);}); return r; }
     const c=collect(raw), n=c.goals.length;
     const mismatch=!(c.crits.length===n&&c.meths.length===n&&c.scheds.length===n);
     return {counts:{goals:n,criteria:c.crits.length,methods:c.meths.length,schedules:c.scheds.length},mismatch,
@@ -86,6 +132,6 @@
         return {area:a.area,text:[].concat(name||[]).reduce((t,n)=>unname(t,n),a.text),criteria:pc.criteria,methods:parseMeth(c.meths[i]),sched:ps.sched,
           iep:{crit:c.crits[i]||'',meth:c.meths[i]||'',sched:c.scheds[i]||''},flags}; })};
   }
-  const api={parse,collect,parseCrit,parseSched,parseMeth,unname};
+  const api={parse,collect,parseCrit,parseSched,parseMeth,unname,neutral,suspects,format,isClean,parseClean};
   if(typeof module!=='undefined') module.exports=api; else root.IEPParse=api;
 })(typeof window!=='undefined'?window:globalThis);

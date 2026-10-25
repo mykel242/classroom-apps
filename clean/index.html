@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- This page cannot send anything anywhere: the browser blocks all network requests from it after it loads. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>IEP Goal Cleaner</title>
+<link rel="stylesheet" href="../shared/classroom.css">
+<style>
+main{max-width:1200px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+textarea{width:100%;font:14px/1.4 var(--sans);padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);resize:vertical}
+#raw{min-height:340px}
+#out{min-height:220px;font-family:var(--mono);font-size:13px}
+.field{display:flex;flex-direction:column;gap:4px}
+.lbl{font-weight:600;font-size:15px}
+.safe{border-left:4px solid var(--got);padding:8px 12px;background:var(--card);border-radius:8px;font-size:14px}
+.sum{padding:8px 12px;border-radius:10px;background:var(--sunk);font-size:15px}
+.sum.bad{background:transparent;border:1.5px solid var(--not);color:var(--not);font-weight:600}
+.g{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card);display:flex;flex-direction:column;gap:4px}
+.g h3{margin:0;font-size:15px}
+.g .t{font-size:14px;line-height:1.45}
+.g .m{font-size:13px;color:var(--muted)}
+mark{background:#fde68a;color:inherit;border-radius:3px;padding:0 1px}
+mark.nm{background:#bfdbfe}
+.flags{display:flex;gap:6px;flex-wrap:wrap}
+.flag{font:600 12px var(--sans);border:1.5px solid var(--part);color:var(--part);border-radius:999px;padding:2px 8px}
+.flag.bad{border-color:var(--not);color:var(--not)}
+.flag button{font:inherit;min-height:0;padding:0 0 0 6px;border:0;background:none;color:inherit;text-decoration:underline;cursor:pointer}
+#list{display:flex;flex-direction:column;gap:10px}
+</style>
+</head>
+<body>
+<main>
+  <div class="bar"><h1 class="grow">IEP Goal Cleaner</h1></div>
+  <div class="safe"><b>Nothing leaves this page.</b> It works entirely in this browser, saves nothing, and is blocked from sending data anywhere. Paste the goals, check the result, then copy the cleaned text into your Google Doc.</div>
+  <div class="cols">
+    <section class="panel">
+      <div class="field"><label class="lbl" for="names">Student's name as written in the IEP</label>
+        <input type="text" id="names" placeholder="e.g. Ana Ashley" autocomplete="off" spellcheck="false">
+        <span class="hint">Add other names they go by with commas: "Ana Ashley, Ani". First and last names are both removed.</span></div>
+      <label class="bar" style="gap:8px;font-size:15px"><input type="checkbox" id="pron" checked style="width:20px;height:20px"> Change he/she, him/her, his/hers to they/them/their</label>
+      <div class="field"><label class="lbl" for="raw">IEP goals</label>
+        <textarea id="raw" placeholder="Copy the Measurable Annual Goals pages from the IEP PDF and paste here." spellcheck="false"></textarea></div>
+      <div class="bar"><button class="primary" id="go">Clean</button><button class="ghost" id="clear">Clear all</button></div>
+    </section>
+    <section class="panel">
+      <div id="sum" class="sum">Results appear here.</div>
+      <div id="list"></div>
+      <div class="field"><label class="lbl" for="out">Cleaned text</label>
+        <textarea id="out" readonly placeholder="Cleaned goals to copy"></textarea></div>
+      <div class="bar"><button class="primary" id="copy" disabled>Copy cleaned text</button><span class="hint" id="cmsg"></span></div>
+      <p class="hint">On the tablet: Home → student → + Add goal → Paste from IEP, and paste this text.</p>
+    </section>
+  </div>
+</main>
+<script src="../shared/iepparse.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const FLAG={'no %':'No % in the IEP (tracker will use 80%)','not trials':'Criteria isn\'t "trials": check it','daily':'Measured daily: tracker sets once a week',
+  'area':'No area','pairing':'Pieces didn\'t line up: check criteria, method, schedule','criteria':'Criteria not found','schedule':'Schedule not found','pron':'Pronouns changed: check grammar'};
+let last=null;
+function names(){ return $('names').value.split(',').map(s=>s.trim()).filter(Boolean); }
+function run(){
+  const raw=$('raw').value; if(!raw.trim()){ $('sum').textContent='Paste the goals first.'; return; }
+  const r=IEPParse.parse(raw,names());
+  r.goals.forEach(g=>{ g.flags=g.flags||[];
+    if($('pron').checked){ const n=IEPParse.neutral(g.text); if(n!==g.text){ g.marked=IEPParse.neutral(g.text,true); g.text=n; g.flags.push('pron'); } }
+    g.sus=IEPParse.suspects(g.text); });
+  last=r; draw();
+}
+function draw(){
+  const r=last, c=r.counts, sus=new Set(r.goals.flatMap(g=>g.sus));
+  const bad=r.mismatch||sus.size||!r.goals.length;
+  $('sum').className='sum'+(bad?' bad':'');
+  $('sum').innerHTML=!r.goals.length?'No goals found. Make sure you copied the goals pages.'
+    :r.mismatch?`Found ${c.goals} goals, ${c.criteria} criteria, ${c.methods} methods, ${c.schedules} schedules. They don't line up: check each one.`
+    :sus.size?`${r.goals.length} goals. Possible names left in the text: ${[...sus].map(esc).join(', ')}. Remove them or mark them OK below.`
+    :`${r.goals.length} goals, all pieces matched. Check the highlights, then copy.`;
+  const hl=g=>{ let t=esc(g.marked||g.text).replace(/\u0001/g,'<mark>').replace(/\u0002/g,'</mark>');
+    t=t.replace(/\{\{student\}\}/g,'<mark class="nm">{{student}}</mark>');
+    g.sus.forEach(w=>{t=t.replace(new RegExp('\\b'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','g'),'<mark style="background:#fecaca">'+esc(w)+'</mark>');}); return t; };
+  $('list').innerHTML=r.goals.map((g,i)=>`<div class="g"><h3>Goal ${i+1}${g.area?' · '+esc(g.area):''}</h3>
+    <div class="t">${hl(g)}</div>
+    <div class="m">Criteria: ${esc(g.iep.crit||'—')} · Method: ${esc(g.iep.meth||'—')} · Schedule: ${esc(g.iep.sched||'—')}</div>
+    ${g.flags.length||g.sus.length?`<div class="flags">${g.sus.map(w=>`<span class="flag bad">Name? ${esc(w)}<button data-rm="${esc(w)}">Remove</button><button data-ok="${esc(w)}">OK</button></span>`).join('')}${g.flags.map(f=>`<span class="flag">${esc(FLAG[f]||f)}</span>`).join('')}</div>`:''}</div>`).join('');
+  $('out').value=r.goals.length?IEPParse.format(r.goals):'';
+  $('copy').disabled=!r.goals.length; $('cmsg').textContent='';
+}
+$('go').addEventListener('click',run);
+$('clear').addEventListener('click',()=>{ $('raw').value=''; $('names').value=''; $('out').value=''; $('list').innerHTML=''; $('sum').className='sum'; $('sum').textContent='Results appear here.'; $('copy').disabled=true; last=null; });
+$('list').addEventListener('click',e=>{ const rm=e.target.closest('[data-rm]'), ok=e.target.closest('[data-ok]'); if(!rm&&!ok) return;
+  if(rm){ $('names').value=names().concat(rm.dataset.rm).join(', '); run(); }
+  else { const w=ok.dataset.ok; last.goals.forEach(g=>{g.sus=g.sus.filter(x=>x!==w);}); draw(); } });
+$('copy').addEventListener('click',()=>{ const t=$('out').value, ok=()=>{$('cmsg').textContent='Copied.';};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok).catch(()=>{$('out').select();document.execCommand('copy');ok();});
+  else { $('out').select(); document.execCommand('copy'); ok(); } });
+</script>
+</body>
+</html>
