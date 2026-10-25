@@ -1,5 +1,5 @@
 // Network first: always use the newest files when online, fall back to the saved copy offline.
-const BUILD='27';
+const BUILD='28';
 const NAME='lap-'+BUILD;
 const FILES=['./','index.html','manifest.webmanifest','icon.svg','icon-512.png','../shared/classroom.css','../shared/classroom.js','../shared/app.js','../shared/version.js','../shared/backup.js'];
 self.addEventListener('install',e=>{

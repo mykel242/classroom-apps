@@ -146,15 +146,16 @@
     // planned measurements are fixed and count toward the limit first
     queue.forEach(b=>b.items.filter(i=>i.planned).forEach(i=>place(i,i.ideal,false)));
     queue.forEach(b=>{
-      let rest=b.items.filter(i=>!i.planned), d=b.day;
+      let rest=b.items.filter(i=>!i.planned).sort((x,y)=>x.deadline<y.deadline?-1:x.deadline>y.deadline?1:0), d=b.day;
       while(rest.length){
-        const room=cap-(load[d]||0);
-        if(room>=rest.length||(room>0&&(load[d]||0)===0)){ rest.forEach(i=>place(i,d,false)); rest=[]; break; }
-        // items that can't move past today's slot deadline stay here, over the limit
         const next=nextSchool(add(d,1));
-        const stuck=rest.filter(i=>i.deadline<next);
-        if(stuck.length){ stuck.forEach(i=>place(i,d,(load[d]||0)>=cap)); rest=rest.filter(i=>i.deadline>=next); }
-        if(room>0&&rest.length&&!stuck.length&&room>=rest.length){ rest.forEach(i=>place(i,d,false)); rest=[]; break; }
+        if(cap-(load[d]||0)>=rest.length){ rest.forEach(i=>place(i,d,false)); rest=[]; break; }
+        // items that can't move past this day's slot deadline stay here, even over the limit
+        rest.filter(i=>i.deadline<next).forEach(i=>place(i,d,(load[d]||0)>=cap)); rest=rest.filter(i=>i.deadline>=next);
+        // a student with more goals than the limit is split: fill today's room, earliest deadline first
+        const room=cap-(load[d]||0);
+        if(rest.length>cap&&room>0){ rest.splice(0,room).forEach(i=>place(i,d,false)); }
+        if(!rest.length) break;
         if(next>to){ rest.forEach(i=>{i.day=next; i.beyond=true; out.push(i);}); rest=[]; break; }
         d=next;
       }
