@@ -53,6 +53,7 @@ function renderProfile(sid){
     h+=`<div class="card goal"><div class="bar">${g.area?`<span class="tag area">${esc(g.area)}</span>`:''}<span class="grow"></span><span class="tag ${nx.cls}">${esc(nx.txt)}</span></div>
       <div class="stmt">${esc(IEP.fill(g.text,nm))}</div>
       <div class="meta">${esc(IEP.critText(g.criteria))} · ${esc(IEP.schedText(g.sched))}${nx.label?' · now: '+esc(nx.label):''}</div>
+      ${g.iep?`<div class="meta">IEP: ${esc([g.iep.crit,g.iep.meth,g.iep.sched].filter(Boolean).join(' · '))}</div>`:''}
       <div class="meta"><b style="color:${cr.met?'var(--got)':'var(--fg)'}">${esc(cr.text)}</b>${cr.met&&g.status==='active'?' · criteria met, mark as Met?':''}${nx.missed?` · <span style="color:var(--not)">${plural(nx.missed,'missed measurement')}</span>`:''}</div>
       ${resultChips(g.id)}
       <div class="btnrow">${g.status==='active'?`<button class="primary" data-measure="${esc(g.id)}">Measure</button><button class="ghost" data-plan="${esc(g.id)}">Plan</button>`:''}<button class="ghost" data-hist="${esc(g.id)}">History</button><span class="grow"></span><button class="plain" data-edit="${esc(g.id)}">Edit</button></div></div>`;});
@@ -181,13 +182,14 @@ function addGoalSheet(sid,after){
   const have=new Set(Object.values(I.goals).filter(g=>g.sid===sid).map(g=>g.bank).filter(Boolean));
   const bank=Object.values(I.bank).sort((a,b)=>String(a.area).localeCompare(String(b.area))||a.text.localeCompare(b.text));
   openSheet(`<h2>Add a goal · ${esc(nameAny(sid))}</h2>
-    <div class="bar" style="padding:0 6px"><button class="primary" id="agNew">Write a new goal</button></div>
+    <div class="bar" style="padding:0 6px"><button class="primary" id="agNew">Write a new goal</button><button class="ghost" id="agPaste">Paste from IEP</button></div>
     ${bank.length?`<div class="lbl" style="padding:0 6px">From the goal bank</div>`+bank.map(b=>`<button type="button" class="item col" data-b="${esc(b.id)}" ${have.has(b.id)?'disabled':''}>
       <span>${b.area?`<span class="tag area">${esc(b.area)}</span> `:''}${have.has(b.id)?'<span class="tag ok">already added</span>':''}</span><span style="white-space:normal">${esc(IEP.fill(b.text,nameAny(sid)))}</span><small>${esc(IEP.critText(b.criteria))} · ${esc(IEP.schedText(b.sched))}</small></button>`).join('')
       :'<p class="hint" style="padding:0 6px">The goal bank is empty. Goals you write are saved there so you can reuse the wording.</p>'}
     <div class="sticky-actions"><button class="ghost" id="agC">Cancel</button></div>`,
   el=>{el.querySelector('#agC').addEventListener('click',closeSheet);
     el.querySelector('#agNew').addEventListener('click',()=>goalEditor(null,{sid},after));
+    el.querySelector('#agPaste').addEventListener('click',()=>pasteSheet(sid,after));
     el.addEventListener('click',e=>{const b=e.target.closest('[data-b]'); if(!b||b.disabled) return; const bk=I.bank[b.dataset.b];
       goalEditor(null,{sid,from:{bank:bk.id,area:bk.area,text:bk.text,criteria:Object.assign({},bk.criteria),methods:(bk.methods||[]).slice(),sched:Object.assign({},bk.sched)}},after);});});
 }

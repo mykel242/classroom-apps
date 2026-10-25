@@ -50,6 +50,12 @@ main{gap:12px;padding-top:0}
 .whohead{display:flex;align-items:center;gap:8px}
 .whohead .nm{flex:1}
 .whohead .resched{padding:0 4px;min-height:36px;font-size:15px}
+.pg{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding:10px 4px}
+.pgh{display:flex;align-items:center;gap:8px}
+.pgh input[type=checkbox]{width:22px;height:22px}
+.pgh .pa{margin-left:auto;width:180px;padding:6px 10px;font-size:15px}
+.pgt{font-size:15px;line-height:1.35}
+.flags{display:flex;gap:6px;flex-wrap:wrap}
 .glr{display:flex;gap:6px;align-items:stretch}
 .glr .gl{flex:1;min-width:0}
 .glr .skip{min-height:44px;padding:0 10px;font-size:14px;flex-shrink:0}
@@ -169,11 +175,13 @@ textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.4
 
 <script src="../shared/classroom.js"></script>
 <script src="../shared/iepcore.js"></script>
+<script src="../shared/iepparse.js"></script>
 <script src="main.js"></script>
 <script src="students.js"></script>
 <script src="activity.js"></script>
 <script src="report.js"></script>
 <script src="prep.js"></script>
+<script src="paste.js"></script>
 <script src="backup.js"></script>
 <script>render();</script>
 <script src="../shared/version.js"></script>
