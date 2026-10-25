@@ -6,7 +6,7 @@ function renderStudents(){
   let h=`<div class="seg" id="stView" style="align-self:flex-start"><button type="button" data-v="profiles" aria-pressed="${studView==='profiles'}">Profiles</button><button type="button" data-v="accom" aria-pressed="${studView==='accom'}">Accommodations overview</button></div>`;
   if(studView==='accom'){ $('view').innerHTML=h+'<div id="accWrap" style="display:flex;flex-direction:column;gap:12px"></div>'; wireStView(); renderAccomOverview($('accWrap')); return; }
   const ids=classIds(); const t=today();
-  const due=new Map(); IEP.agenda(I,cal(),addDays(t,1),t).forEach(x=>{if(x.day<=t) due.set(x.sid,(due.get(x.sid)||0)+1);});
+  const due=new Map(), st=schoolToday(); bal().forEach(x=>{if(x.day<=st) due.set(x.sid,(due.get(x.sid)||0)+1);});
   ids.forEach(c=>{const cl=D.classes[c], r=(cl&&cl.students)||[];
     if(ids.length>1&&!r.length) return;
     if(ids.length>1) h+=`<div class="clshead">${esc(cl.name)}</div>`;
@@ -29,10 +29,13 @@ function nextText(g){
   if(g.status==='met') return {cls:'ok',txt:'Met'+(g.metDate?' '+short(g.metDate):'')};
   if(g.status==='paused') return {cls:'',txt:'Paused'};
   if(g.status==='closed') return {cls:'',txt:'Closed'};
-  const t=today(), sc=IEP.schedule(g,I.data,cal(),addDays(t,120),t), n=sc.next;
+  const t=today(), st=schoolToday(), sc=IEP.schedule(g,I.data,cal(),addDays(t,120),t), n=sc.next, b=nextFor(g.id);
   if(!n) return {cls:'',txt:'No more measurements scheduled'};
-  const when=n.planned?'Planned '+wkday(n.planned)+' '+short(n.planned):n.state==='overdue'?'Overdue · was due by '+short(n.end):n.state==='due'?'Due now · by '+short(n.end):n.state==='open'?'Open · aim for '+short(n.target)+', by '+short(n.end):'Next: '+short(n.target);
-  return {cls:n.state==='overdue'?'over':(n.state==='due'||n.planned===t)?'due':'',txt:when,label:n.label,missed:sc.slots.filter(s=>s.state==='missed').length};
+  const missed=sc.slots.filter(s=>s.state==='missed').length;
+  if(b){ const when=b.day===t?'today':b.day===st?wkday(b.day):wkday(b.day)+' '+short(b.day);
+    const txt=(b.planned?'Planned ':b.overdue?'Overdue · ':'')+(b.planned?when:'Measure '+when)+(b.slot.end>b.day?' · due by '+short(b.slot.end):'');
+    return {cls:b.overdue||b.overCap?'over':b.day<=st?'due':'',txt,label:n.label,missed}; }
+  return {cls:'',txt:'Next: '+short(n.target),label:n.label,missed};
 }
 function renderProfile(sid){
   const c=classOf(sid), nm=nameAny(sid), pr=I.profiles[sid]||{}, t=today();
@@ -41,8 +44,8 @@ function renderProfile(sid){
   const acts=A.entries.filter(e=>(e.sids||[]).includes(sid)).sort((a,b)=>a.date<b.date?1:-1);
   let h=`<div class="bar"><button class="plain" id="backP" style="padding:0">‹ Students</button><span class="grow"></span><button class="ghost" id="printP" style="min-height:40px">Print progress</button></div>
     <div class="prof-h"><div class="grow"><h2>${esc(nm)}</h2><div class="facts"><span>${esc((D.classes[c]||{}).name||'')}</span>
-      <span>IEP date <b>${pr.iepDate?esc(short(pr.iepDate)):'—'}</b></span><span>Annual review <b>${pr.reviewDate?esc(short(pr.reviewDate)):'—'}</b>${pr.reviewDate&&pr.reviewDate>=t&&pr.reviewDate<=addDays(t,30)?' <span class="tag due">soon</span>':''}</span></div></div>
-      <button class="ghost" id="editIep" style="min-height:40px">IEP dates</button></div>`;
+      <span>IEP date <b>${pr.iepDate?esc(short(pr.iepDate)):'—'}</b></span>${pr.day?`<span>Measuring day <b>${['','Mon','Tue','Wed','Thu','Fri'][pr.day]}</b></span>`:''}<span>Annual review <b>${pr.reviewDate?esc(short(pr.reviewDate)):'—'}</b>${pr.reviewDate&&pr.reviewDate>=t&&pr.reviewDate<=addDays(t,30)?' <span class="tag due">soon</span>':''}</span></div></div>
+      <button class="ghost" id="editIep" style="min-height:40px">IEP & schedule</button></div>`;
   // goals
   h+=`<div class="sec"><h2>Goals</h2><button class="primary" id="addGoal" style="min-height:42px">+ Add goal</button></div>`;
   if(!gs.length) h+=`<div class="card" style="align-items:center;text-align:center"><div class="meta">No goals yet. Add one from the goal bank or write a new one.</div></div>`;
@@ -90,10 +93,13 @@ function iepSheet(sid,after){
   openSheet(`<h2>${esc(nameAny(sid))} · IEP dates</h2>
     <div class="field"><label for="ipD">IEP date</label><input id="ipD" type="date" value="${esc(pr.iepDate||'')}" style="width:200px"></div>
     <div class="field"><label for="ipR">Annual review</label><input id="ipR" type="date" value="${esc(pr.reviewDate||'')}" style="width:200px"></div>
+    <div class="field"><span class="lbl">Measuring day (optional)</span><div class="seg" id="ipDay">${['Any','Mon','Tue','Wed','Thu','Fri'].map((n,i)=>`<button type="button" data-d="${i}" aria-pressed="${(+pr.day||0)===i}">${n}</button>`).join('')}</div></div>
     <p class="hint" style="padding:0 6px">New goals for this student end on the annual review date unless you set another end.</p>
     <div class="sticky-actions"><button class="ghost" id="ipC">Cancel</button><button class="primary" id="ipS">Save</button></div>`,
-  el=>{el.querySelector('#ipC').addEventListener('click',closeSheet);
-    el.querySelector('#ipS').addEventListener('click',()=>{I=loadI(); const p=I.profiles[sid]=I.profiles[sid]||{}; p.iepDate=el.querySelector('#ipD').value; p.reviewDate=el.querySelector('#ipR').value; p.updated=Date.now(); saveI(); closeSheet(); toast('Saved'); after();});});
+  el=>{let day=+pr.day||0;
+    el.querySelector('#ipDay').addEventListener('click',e=>{const b=e.target.closest('[data-d]'); if(!b) return; day=+b.dataset.d; el.querySelectorAll('#ipDay button').forEach(x=>x.setAttribute('aria-pressed',x===b));});
+    el.querySelector('#ipC').addEventListener('click',closeSheet);
+    el.querySelector('#ipS').addEventListener('click',()=>{I=loadI(); const p=I.profiles[sid]=I.profiles[sid]||{}; p.iepDate=el.querySelector('#ipD').value; p.reviewDate=el.querySelector('#ipR').value; if(day) p.day=day; else delete p.day; p.updated=Date.now(); saveI(); closeSheet(); toast('Saved'); after();});});
 }
 
 // ---------- goal editor: a student's goal ({sid}) or a goal bank entry ({bank:true})
@@ -108,7 +114,10 @@ function goalEditor(g,opt,after){
     <div class="field"><span class="lbl">Area</span><div class="chips" id="gArea">${areas.map(a=>`<button type="button" data-a="${esc(a)}" aria-pressed="${d.area===a}">${esc(a)}</button>`).join('')}<button type="button" class="sug" data-a="__new">Other…</button></div></div>
     <div class="field"><label for="gText">Goal</label><textarea id="gText" placeholder="Paste or type the goal. Use {{student}} where the name goes.">${esc(d.text)}</textarea>
       <span class="hint">Tip: {{student}} is replaced with each student's name.</span></div>
-    <div class="field"><span class="lbl">Criteria</span><div class="nums"><input id="cP" type="number" min="1" max="100" value="${esc(d.criteria.pct)}" aria-label="Percent">% accuracy in <input id="cX" type="number" min="1" max="20" value="${esc(d.criteria.x)}" aria-label="Trials needed"> out of <input id="cY" type="number" min="1" max="20" value="${esc(d.criteria.y)}" aria-label="Trials considered"> trials</div></div>
+    <div class="field"><span class="lbl">Criteria</span><div class="nums"><input id="cP" type="number" min="1" max="100" value="${esc(d.criteria.pct)}" aria-label="Percent">% accuracy
+        <label class="bar" style="gap:6px"><input type="checkbox" id="cT" ${d.criteria.trials===false?'':'checked'} style="width:22px;height:22px"> in</label>
+        <span id="cTW" class="nums"><input id="cX" type="number" min="1" max="20" value="${esc(d.criteria.x||4)}" aria-label="Trials needed"> out of <input id="cY" type="number" min="1" max="20" value="${esc(d.criteria.y||5)}" aria-label="Trials considered"> trials</span></div>
+      <span class="hint" id="cTH"></span></div>
     <div class="field"><span class="lbl">Measure</span><div class="nums"><input id="sN" type="number" min="1" max="20" value="${esc(d.sched.n)}" aria-label="How many times"> time(s) per <select id="sPer">${Object.keys(IEP.PER).map(k=>`<option value="${k}">${IEP.PER[k]}</option>`).join('')}</select></div></div>
     <div class="field"><span class="lbl">Methods</span><div class="chips" id="gMeth">${methods.map(m=>`<button type="button" data-m="${esc(m)}" aria-pressed="${d.methods.includes(m)}">${esc(m)}</button>`).join('')}<button type="button" class="sug" data-m="__new">Other…</button></div></div>
     ${isBank?'':`<div class="field"><span class="lbl">Dates</span><div class="bar"><input id="gS" type="date" value="${esc(d.start||'')}" aria-label="Start"><span class="hint">to</span><input id="gE" type="date" value="${esc(d.end||'')}" aria-label="End"></div></div>
@@ -122,6 +131,9 @@ function goalEditor(g,opt,after){
     <div class="sticky-actions"><button class="ghost" id="gC">Cancel</button><button class="primary" id="gSave">${isNew?'Add':'Save'}</button></div>`,
   el=>{
     el.querySelector('#sPer').value=d.sched.per;
+    const trialsUI=()=>{const on=el.querySelector('#cT').checked; el.querySelector('#cTW').style.opacity=on?1:.35; el.querySelectorAll('#cTW input').forEach(i=>i.disabled=!on);
+      el.querySelector('#cTH').textContent=on?'':'Without trials, the goal counts as meeting criteria when the latest measurement reaches the percent.';};
+    trialsUI(); el.querySelector('#cT').addEventListener('change',trialsUI);
     const pick=(id,attr,multi)=>el.querySelector(id).addEventListener('click',e=>{const b=e.target.closest(`[data-${attr}]`); if(!b) return; const v=b.dataset[attr];
       if(v==='__new'){const inp=document.createElement('input');inp.type='text';inp.placeholder='Type it';inp.enterKeyHint='done';inp.style.minWidth='170px';b.replaceWith(inp);inp.focus();
         inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();inp.blur();}});
@@ -139,7 +151,9 @@ function goalEditor(g,opt,after){
       const err=m=>{const x=el.querySelector('#gErr');x.textContent=m;x.hidden=false;};
       const num=(id,lo,hi,def)=>{const v=Math.round(+el.querySelector(id).value); return v>=lo&&v<=hi?v:def;};
       d.text=el.querySelector('#gText').value.trim();
-      d.criteria={pct:num('#cP',1,100,80),x:num('#cX',1,20,4),y:num('#cY',1,20,5)}; if(d.criteria.x>d.criteria.y) return err('The number of trials needed can\'t be more than the trials considered.');
+      d.criteria={pct:num('#cP',1,100,80),x:num('#cX',1,20,4),y:num('#cY',1,20,5)};
+      if(!el.querySelector('#cT').checked) d.criteria.trials=false;
+      else if(d.criteria.x>d.criteria.y) return err('The number of trials needed can\'t be more than the trials considered.');
       d.sched={n:num('#sN',1,20,1),per:el.querySelector('#sPer').value};
       if(!d.text) return err('Add the goal wording.');
       if(!isBank){d.start=el.querySelector('#gS').value||today(); d.end=el.querySelector('#gE').value||''; if(d.end&&d.end<d.start) return err('The end date is before the start date.');
@@ -283,7 +297,7 @@ function renderBank(){
   let area=null;
   bank.forEach(b=>{if(b.area!==area){area=b.area; h+=`<div class="clshead">${esc(area||'No area')}</div>`;}
     const users=Object.values(I.goals).filter(g=>g.bank===b.id&&sidInScope(g.sid)&&g.status!=='closed');
-    const dueN=IEP.agenda({goals:Object.fromEntries(users.map(g=>[g.id,g])),data:I.data},cal(),today(),today()).filter(x=>x.day<=today()).length;
+    const ids=new Set(users.map(g=>g.id)), dueN=bal().filter(x=>ids.has(x.goal.id)&&x.day<=schoolToday()).length;
     h+=`<button type="button" class="stu" data-b="${esc(b.id)}"><div class="stmt">${esc(b.text)}</div><div class="meta">${esc(IEP.critText(b.criteria))} · ${esc(IEP.schedText(b.sched))}</div>
       <div class="bar"><span class="meta grow">${users.length?esc(users.map(g=>nameAny(g.sid)).join(', ')):'No students yet'}</span>${dueN?`<span class="tag due">${dueN} due</span>`:''}</div></button>`;});
   $('view').innerHTML=h;

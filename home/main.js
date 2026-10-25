@@ -19,7 +19,15 @@ let A=loadA(), C=loadC(), I=loadI(), D=Classroom.load();
 const failSave=()=>toast("Couldn't save. The tablet may be out of space.");
 const saveA=()=>{try{localStorage.setItem(AK,JSON.stringify(A))}catch(e){failSave();}};
 const saveC=()=>{try{localStorage.setItem(CK,JSON.stringify(C))}catch(e){failSave();}};
-const saveI=()=>{try{IEP.save(I)}catch(e){failSave();}};
+const saveI=()=>{_bal=null; try{IEP.save(I)}catch(e){failSave();}};
+// balanced schedule: every open measurement placed on a school day within the daily limit
+let _bal=null;
+const dailyCap=()=>(I.settings&&I.settings.cap!=null)?+I.settings.cap:6;
+function bal(){ if(!_bal){ const days={}; Object.keys(I.profiles).forEach(s=>{if(I.profiles[s].day) days[s]=+I.profiles[s].day;});
+  _bal=IEP.balance(I,cal(),addDays(today(),42),today(),{cap:dailyCap(),days}); } return _bal; }
+// the first scheduled measurement for each goal
+function nextFor(gid){ return bal().find(x=>x.goal.id===gid)||null; }
+const schoolToday=()=>IEP.nextSchool(today());
 const cal=()=>D.calendar||null;
 
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
@@ -57,7 +65,7 @@ function confirmTap(b,label,fn){ if(b.classList.contains('sure')){fn();return;}
   const old=b.textContent; b.classList.add('sure'); b.textContent=label||'Tap again'; setTimeout(()=>{if(b.isConnected){b.classList.remove('sure');b.textContent=old;}},3000);}
 
 function render(){
-  D=Classroom.load(); I=loadI(); A=loadA(); C=loadC();
+  D=Classroom.load(); I=loadI(); A=loadA(); C=loadC(); _bal=null;
   if(cls!=='all'&&!D.classes[cls]) cls='all';
   renderHead();
   ({today:renderToday,students:renderStudents,bank:renderBank,activity:renderActivity})[tab]();
@@ -85,32 +93,27 @@ function whoBlock(items){
 function renderToday(){
   const t=today(), mon=monday(weekOff), days=[0,1,2,3,4].map(i=>addDays(mon,i)), fri=days[4], thisWeek=weekOff===0;
   const scoped=x=>sidInScope(x.sid);
-  const ag=IEP.agenda(I,cal(),addDays(fri,21),t).filter(scoped);
-  const up=IEP.upcoming(I,cal(),mon,fri,t).filter(scoped);
+  const B=bal().filter(scoped), st=schoolToday();
   const fus=A.entries.filter(e=>inScope(e.cls)&&e.fu&&e.fu.date&&!e.fu.done);
   const laps=lapDays();
-  const dueNow=ag.filter(x=>x.day<=t), overdue=dueNow.filter(x=>x.overdue), fuNow=fus.filter(e=>e.fu.date<=t);
+  const dueNow=B.filter(x=>x.day===st), overdue=dueNow.filter(x=>x.overdue), fuNow=fus.filter(e=>e.fu.date<=t);
   let h=`<div class="weekbar"><button class="ghost" id="wPrev" aria-label="Previous week">‹</button><h2>${thisWeek?(isWeekend()?'Coming week':'This week'):'Week of '+short(mon)} <span class="meta" style="font-weight:500">${short(mon)}–${short(fri)}</span></h2>${thisWeek?'':'<button class="ghost" id="wNow">Today</button>'}<button class="ghost" id="wNext" aria-label="Next week">›</button></div>
     <div class="bar"><span class="grow"></span><button class="plain" id="wReport" style="padding:0;min-height:32px">Weekly report ›</button></div>`;
   if(thisWeek) h+=`<div class="tiles">
-    <button type="button" class="tile ${overdue.length?'alert':''}" id="tDue"><b>${dueNow.length}</b><span>${dueNow.length===1?'measurement':'measurements'} due${overdue.length?' · '+overdue.length+' overdue':''}</span></button>
+    <button type="button" class="tile ${overdue.length?'alert':''}" id="tDue"><b>${dueNow.length}</b><span>${dueNow.length===1?'measurement':'measurements'} ${st===t?'today':wkday(st)}${overdue.length?' · '+overdue.length+' overdue':''}</span></button>
     <button type="button" class="tile ${fuNow.some(e=>e.fu.date<t)?'alert':''}" id="tFu"><b>${fuNow.length}</b><span>follow-ups due</span></button>
     <a class="tile" href="../lap/"><b>${(laps[t]||[]).reduce((a,x)=>a+x.laps,0)}</b><span>laps today</span></a></div>`;
   if(!Object.keys(I.goals).length) h+=`<div class="card"><h3>No IEP goals yet</h3><div class="meta">Open a student's profile to add goals, or start in the Goal bank.</div><div class="btnrow"><button class="primary" id="goStudents">Students</button><button class="ghost" id="goBank">Goal bank</button></div></div>`;
-  // a weekend "today" card so due items are never hidden
-  if(thisWeek&&isWeekend()&&dueNow.length) h+=dayCard(t,dueNow,fuNow,laps,true);
   days.forEach(d=>{
-    const isT=d===t;
-    let items;
-    if(isT) items=dueNow;
-    else if(d>t) items=up.filter(x=>x.day===d&&!x.overdue);
-    else items=[];
-    const df=isT?fuNow:(d>t?fus.filter(e=>e.fu.date===d):[]);
+    const isT=d===t, first=d===st;
+    const items=d>=st?B.filter(x=>x.day===d):[];
+    const df=first?fuNow:(d>st?fus.filter(e=>e.fu.date===d):[]);
     h+=dayCard(d,items,df,laps,isT);
   });
+  h+=`<div class="bar"><span class="meta grow">Daily limit: ${dailyCap()?dailyCap()+' measurements':'none'}</span><button class="plain" id="wSched" style="padding:0;min-height:32px">Scheduling ›</button></div>`;
   // coming up after this week
   const after=addDays(fri,1), until=addDays(fri,14);
-  const later=IEP.upcoming(I,cal(),after,until,t).filter(scoped);
+  const later=B.filter(x=>x.day>=after&&x.day<=until);
   const firstEach=new Map(); later.forEach(x=>{const k=x.goal.id; if(!firstEach.has(k)) firstEach.set(k,x);});
   const lines=[...firstEach.values()].map(x=>({d:x.day,k:'Measure',v:`<b>${esc(nameAny(x.sid))}</b> · ${esc(goalShort(x.goal))}`,sid:x.sid}))
     .concat(fus.filter(e=>e.fu.date>=after&&e.fu.date<=until).map(e=>({d:e.fu.date,k:'Follow up',v:`<b>${esc(e.fu.text||'Follow up')}</b> · ${esc(names(e.sids))}`,act:e.id})))
@@ -131,6 +134,7 @@ function renderToday(){
   $('wNext').addEventListener('click',()=>{weekOff++;renderToday();});
   if($('wNow')) $('wNow').addEventListener('click',()=>{weekOff=0;renderToday();});
   $('wReport').addEventListener('click',reportSheet);
+  $('wSched').addEventListener('click',schedSheet);
   if($('tFu')) $('tFu').addEventListener('click',()=>{tab='activity';actFilter='fu';savePrefs();render();});
   if($('tDue')) $('tDue').addEventListener('click',()=>{const c=document.querySelector('.day.today'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'});});
   if($('goStudents')) $('goStudents').addEventListener('click',()=>{tab='students';render();});
@@ -150,7 +154,9 @@ function dayCard(d,items,fus,laps,isT){
   if(logged.length) bits.push(plural(logged.length,'measurement')+' logged');
   ld.forEach(x=>bits.push(plural(x.laps,'lap')+' ('+esc((D.classes[x.cls]||{}).name||'')+')'));
   acts.forEach(e=>bits.push(esc(TSHORT[e.type]||'Note')+': '+esc(names(e.sids))));
-  let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${items.some(x=>x.overdue)?'over':'due'}">${plural(items.length,'measurement')}</span>`:''}</div>`;
+  const cap=dailyCap(), over=items.some(x=>x.overCap);
+  let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue)?'over':'due'}">${items.length}${cap?' / '+cap:''} measurement${items.length===1?'':'s'}</span>`:''}</div>`;
+  if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit: some of these can't move later without missing their deadline.</div>`;
   if(items.length) h+=whoBlock(items);
   fus.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
   if(!items.length&&!fus.length&&!bits.length) h+=`<div class="done">${past?'Nothing recorded.':'Nothing scheduled.'}</div>`;
@@ -159,13 +165,37 @@ function dayCard(d,items,fus,laps,isT){
 }
 
 // ---------- menu
-$('menuBtn').addEventListener('click',()=>openSheet(`<button class="item" id="mExport">Export backup</button>
+// ---------- scheduling settings: daily limit and each student's measuring day
+function schedSheet(){
+  const DN=['','Mon','Tue','Wed','Thu','Fri'];
+  const studs=classIds().flatMap(c=>((D.classes[c]||{}).students||[]).filter(s=>Object.values(I.goals).some(g=>g.sid===s.id&&g.status==='active')));
+  let cap=dailyCap();
+  openSheet(`<h2>Scheduling</h2>
+    <div class="field"><span class="lbl">Daily limit</span><div class="nums"><span class="step"><button type="button" id="capM">−</button><output id="capV"></output><button type="button" id="capP">+</button></span><span class="hint" id="capH"></span></div>
+      <span class="hint">Extra measurements move to the next school day, earliest deadline first. A student's measurements stay together.</span></div>
+    <div class="field"><span class="lbl">Measuring day (optional)</span><span class="hint">Measurements for that student land on their day when the deadline allows.</span></div>
+    <div class="items" id="mdays">${studs.length?studs.map(s=>{const d=+((I.profiles[s.id]||{}).day)||0; return `<div class="row"><span class="t">${esc(s.name)}</span><div class="seg" data-sid="${esc(s.id)}">${DN.map((n,i)=>`<button type="button" data-d="${i}" aria-pressed="${d===i}">${i?n:'Any'}</button>`).join('')}</div></div>`;}).join(''):'<div class="row"><span class="meta">Students with active goals appear here.</span></div>'}</div>
+    <div class="sticky-actions"><button class="primary" id="sDone">Done</button></div>`,
+  el=>{const drawCap=()=>{el.querySelector('#capV').textContent=cap||'Off'; el.querySelector('#capH').textContent=cap?'measurements a day':'no limit';};
+    drawCap();
+    const setCap=v=>{cap=Math.max(0,Math.min(40,v)); I=loadI(); I.settings=I.settings||{}; I.settings.cap=cap; saveI(); drawCap();};
+    el.querySelector('#capM').addEventListener('click',()=>setCap(cap-1));
+    el.querySelector('#capP').addEventListener('click',()=>setCap(cap+1));
+    el.querySelector('#mdays').addEventListener('click',e=>{const b=e.target.closest('[data-d]'); if(!b) return; const seg=b.closest('[data-sid]'), sid=seg.dataset.sid;
+      I=loadI(); const p=I.profiles[sid]=I.profiles[sid]||{}; p.day=+b.dataset.d||0; if(!p.day) delete p.day; p.updated=Date.now(); saveI();
+      seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));});
+    el.querySelector('#sDone').addEventListener('click',()=>{closeSheet(); render();});});
+}
+
+$('menuBtn').addEventListener('click',()=>openSheet(`<button class="item" id="mSched">Scheduling…</button>
+  <button class="item" id="mExport">Export backup</button>
   <button class="item" id="mImport">Import backup…</button>
   <button class="item" id="mReport">Weekly report…</button>
   <button class="item" id="mCsvM">Copy measurements as CSV</button>
   <button class="item" id="mCsv">Copy activity log as CSV</button>
   <hr><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>`,
-  el=>{el.querySelector('#mExport').addEventListener('click',()=>HomeBackup.exportSheet());
+  el=>{el.querySelector('#mSched').addEventListener('click',schedSheet);
+    el.querySelector('#mExport').addEventListener('click',()=>HomeBackup.exportSheet());
     el.querySelector('#mImport').addEventListener('click',()=>HomeBackup.importSheet());
     el.querySelector('#mCsvM').addEventListener('click',()=>HomeBackup.copyMeasureCsv());
     el.querySelector('#mReport').addEventListener('click',reportSheet);

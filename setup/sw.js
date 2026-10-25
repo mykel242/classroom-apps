@@ -1,5 +1,5 @@
 // Network first: always use the newest files when online, fall back to the saved copy offline.
-const BUILD='26';
+const BUILD='27';
 const NAME='setup-'+BUILD;
 const FILES=['./','index.html','manifest.webmanifest','../lap/icon.svg','../lap/icon-512.png','../shared/classroom.css','../shared/classroom.js','../shared/app.js','../shared/version.js','../shared/backup.js','../shared/iepcore.js'];
 self.addEventListener('install',e=>{

@@ -97,17 +97,73 @@
     });
     return out;
   }
-  // criteria such as "80% accuracy in 4 out of 5 trials"
+  // criteria such as "80% accuracy in 4 out of 5 trials", or just "80% accuracy" (judged on the latest measurement)
+  const hasTrials=c=>!c||c.trials!==false;
   function criteria(g,data){
     const c=g.criteria||{}; const pct=+c.pct||80, x=+c.x||4, y=+c.y||5;
-    const last=data.filter(d=>d.goal===g.id&&typeof d.pct==='number').sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.t||0)-(b.t||0)).slice(-y);
-    const hits=last.filter(d=>d.pct>=pct).length;
-    return {pct,x,y,n:last.length,hits,met:hits>=x,text:last.length?`${hits} of last ${last.length} at ${pct}%+ (needs ${x} of ${y})`:'No measurements yet'};
+    const all=data.filter(d=>d.goal===g.id&&typeof d.pct==='number').sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.t||0)-(b.t||0));
+    if(!hasTrials(c)){const l=all[all.length-1];
+      return {pct,trials:false,n:all.length,met:!!l&&l.pct>=pct,text:l?`Latest ${l.pct}% (target ${pct}%)`:'No measurements yet'};}
+    const last=all.slice(-y), hits=last.filter(d=>d.pct>=pct).length;
+    return {pct,x,y,trials:true,n:last.length,hits,met:hits>=x,text:last.length?`${hits} of last ${last.length} at ${pct}%+ (needs ${x} of ${y})`:'No measurements yet'};
   }
-  const critText=c=>`${c&&c.pct||80}% accuracy in ${c&&c.x||4} out of ${c&&c.y||5} trials`;
+  const critText=c=>hasTrials(c)?`${c&&c.pct||80}% accuracy in ${c&&c.x||4} out of ${c&&c.y||5} trials`:`${c&&c.pct||80}% accuracy`;
+
+  /* Spread measurements so no school day is overloaded.
+     Each open slot gets an ideal day: a plan date if set; otherwise the student's measuring day
+     (first one inside the slot), else today when due/overdue, else the slot's target.
+     Days are filled in order up to `cap` measurements; a student's measurements on the same day stay
+     together. Anything that would slip past its deadline stays put and is flagged over the limit.
+     opts: {cap, days:{sid:1..5}} where 1 = Monday. */
+  const isSchool=d=>{const w=wd(d); return w>0&&w<6;};
+  const nextSchool=d=>{while(!isSchool(d)) d=add(d,1); return d;};
+  function balance(I,cal,to,now,opts){
+    const t=now||today(), start=nextSchool(t), cap=Math.max(0,+(opts&&opts.cap)||0), days=(opts&&opts.days)||{};
+    const items=[];
+    Object.values(I.goals).forEach(g=>{ if(g.status&&g.status!=='active') return;
+      const sc=schedule(g,I.data,cal,to,t);
+      sc.slots.forEach(s=>{ if(s.state==='done'||s.state==='missed') return;
+        const late=s.state==='overdue'||s.state==='due';
+        let ideal;
+        if(s.planned) ideal=s.planned;
+        else{
+          const md=+days[g.sid]||0;
+          if(md){ let d=s.start>start?s.start:start; while(d<=s.end&&wd(d)!==md) d=add(d,1); ideal=d<=s.end?d:null; }
+          if(!ideal) ideal=late?start:(s.target<start?start:s.target);
+        }
+        ideal=s.planned?ideal:nextSchool(ideal);
+        if(ideal>to) return;
+        items.push({goal:g,sid:g.sid,cls:g.cls,slot:s,ideal,deadline:s.end<start?start:s.end,overdue:s.state==='overdue',planned:!!s.planned});
+      });
+    });
+    if(!cap){ items.forEach(x=>x.day=x.ideal); return items.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0); }
+    // bundle each student's items that want the same day
+    const bundles=new Map();
+    items.forEach(x=>{const k=x.ideal+'|'+x.sid; if(!bundles.has(k)) bundles.set(k,{day:x.ideal,sid:x.sid,items:[]}); bundles.get(k).items.push(x);});
+    const queue=[...bundles.values()].sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:Math.min(...a.items.map(i=>i.deadline))<Math.min(...b.items.map(i=>i.deadline))?-1:1);
+    const load={}, out=[];
+    const place=(x,d,over)=>{x.day=d; x.overCap=!!over; load[d]=(load[d]||0)+1; out.push(x);};
+    // planned measurements are fixed and count toward the limit first
+    queue.forEach(b=>b.items.filter(i=>i.planned).forEach(i=>place(i,i.ideal,false)));
+    queue.forEach(b=>{
+      let rest=b.items.filter(i=>!i.planned), d=b.day;
+      while(rest.length){
+        const room=cap-(load[d]||0);
+        if(room>=rest.length||(room>0&&(load[d]||0)===0)){ rest.forEach(i=>place(i,d,false)); rest=[]; break; }
+        // items that can't move past today's slot deadline stay here, over the limit
+        const next=nextSchool(add(d,1));
+        const stuck=rest.filter(i=>i.deadline<next);
+        if(stuck.length){ stuck.forEach(i=>place(i,d,(load[d]||0)>=cap)); rest=rest.filter(i=>i.deadline>=next); }
+        if(room>0&&rest.length&&!stuck.length&&room>=rest.length){ rest.forEach(i=>place(i,d,false)); rest=[]; break; }
+        if(next>to){ rest.forEach(i=>{i.day=next; i.beyond=true; out.push(i);}); rest=[]; break; }
+        d=next;
+      }
+    });
+    return out.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
+  }
   const schedText=s=>`${(s&&s.n)||1} time${((s&&s.n)||1)>1?'s':''} per ${PER[(s&&s.per)||'month']}`;
   const fill=(text,name)=>String(text||'').replace(/\{\{\s*student(\s*name)?\s*\}\}/gi,name||'the student');
 
-  const api={KEY,PER,load,save,quarters,windows,schedule,agenda,upcoming,criteria,critText,schedText,fill,ymd,add,diff,today,parse};
+  const api={KEY,PER,load,save,quarters,windows,schedule,agenda,upcoming,balance,criteria,critText,schedText,fill,ymd,add,diff,today,parse,isSchool,nextSchool};
   if(typeof module!=='undefined') module.exports=api; else root.IEP=api;
 })(typeof window!=='undefined'?window:globalThis);
