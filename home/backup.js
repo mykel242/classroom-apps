@@ -66,6 +66,7 @@
     Object.values(ip.goals||{}).forEach(g=>{if(!g||!str(g.id)||!str(g.sid)||!str(g.text)){bad++;return;}
       goals[g.id]={id:str(g.id),sid:str(g.sid),cls:str(g.cls),bank:str(g.bank)||null,area:str(g.area,60),text:str(g.text),criteria:cleanCrit(g.criteria),methods:cleanMeth(g.methods),sched:cleanSched(g.sched),
         start:DAY.test(g.start||'')?g.start:'',end:DAY.test(g.end||'')?g.end:'',status:STAT.has(g.status)?g.status:'active',plan:DAY.test(g.plan||'')?g.plan:'',updated:+g.updated||0};
+      if(+g.created>0) goals[g.id].created=+g.created;
       if(g.status==='met'&&DAY.test(g.metDate||'')) goals[g.id].metDate=g.metDate;});
     (Array.isArray(ip.data)?ip.data:[]).forEach(p=>{if(!p||!str(p.id)||!str(p.goal)||!DAY.test(p.date||'')||!(+p.pct>=0&&+p.pct<=100)||(!goals[p.goal]&&!I.goals[p.goal])){bad++;return;}
       const o={id:str(p.id),goal:str(p.goal),sid:str(p.sid),date:p.date,pct:Math.round(+p.pct),method:str(p.method,80),note:str(p.note,1000),t:+p.t||0};

@@ -164,7 +164,7 @@ function goalEditor(g,opt,after){
         const upd=el.querySelector('#upd'); if(upd&&upd.checked) Object.values(I.goals).filter(x=>x.bank===d.id).forEach(x=>{x.area=d.area;x.text=d.text;x.criteria=Object.assign({},d.criteria);x.methods=d.methods.slice();x.sched=Object.assign({},d.sched);x.updated=Date.now();});}
       else{const tb=el.querySelector('#toBank');
         if(tb&&tb.checked){const b={id:uid('b'),area:d.area,text:d.text,criteria:Object.assign({},d.criteria),methods:d.methods.slice(),sched:Object.assign({},d.sched),updated:Date.now()}; I.bank[b.id]=b; d.bank=b.id;}
-        I.goals[d.id]=d;}
+        if(!I.goals[d.id]&&!d.created) d.created=Date.now(); I.goals[d.id]=d;}
       saveI(); closeSheet(); toast(isNew?'Added':'Saved'); after();});
     if(!isNew){
       el.querySelector('#gDel').addEventListener('click',()=>el.querySelector('#gDelC').hidden=false);
@@ -336,6 +336,6 @@ function applySheet(b){
     el.querySelector('#apC').addEventListener('click',()=>bankSheet(b));
     el.querySelector('#apS').addEventListener('click',()=>{if(!sel.length){toast('Pick at least one student');return;}
       I=loadI(); sel.forEach(sid=>{const pr=I.profiles[sid]||{}; const g={id:uid('g'),sid,cls:classOf(sid),bank:b.id,area:b.area,text:b.text,criteria:Object.assign({},b.criteria),methods:(b.methods||[]).slice(),sched:Object.assign({},b.sched),
-        start:today(),end:pr.reviewDate||(cal()&&cal().end)||'',status:'active',plan:'',updated:Date.now()}; I.goals[g.id]=g;});
+        start:today(),end:pr.reviewDate||(cal()&&cal().end)||'',status:'active',plan:'',created:Date.now(),updated:Date.now()}; I.goals[g.id]=g;});
       saveI(); toast('Added to '+plural(sel.length,'student')); bankSheet(I.bank[b.id]);});});
 }

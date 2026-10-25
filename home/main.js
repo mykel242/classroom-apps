@@ -173,12 +173,16 @@ function schedSheet(){
   let cap=dailyCap();
   openSheet(`<h2>Scheduling</h2>
     <div class="field"><span class="lbl">Daily limit</span><div class="nums"><span class="step"><button type="button" id="capM">−</button><output id="capV"></output><button type="button" id="capP">+</button></span><span class="hint" id="capH"></span></div>
-      <span class="hint">Extra measurements move to the next school day, earliest deadline first. A student's measurements stay together.</span></div>
+      <span class="hint">Extra measurements move to the next school day, earliest deadline first. A student's measurements stay together.</span>
+      <div class="note" id="needN"></div></div>
     <div class="field"><span class="lbl">Measuring day (optional)</span><span class="hint">Measurements for that student land on their day when the deadline allows.</span></div>
     <div class="items" id="mdays">${studs.length?studs.map(s=>{const d=+((I.profiles[s.id]||{}).day)||0; return `<div class="row"><span class="t">${esc(s.name)}</span><div class="seg" data-sid="${esc(s.id)}">${DN.map((n,i)=>`<button type="button" data-d="${i}" aria-pressed="${d===i}">${i?n:'Any'}</button>`).join('')}</div></div>`;}).join(''):'<div class="row"><span class="meta">Students with active goals appear here.</span></div>'}</div>
     <div class="sticky-actions"><button class="primary" id="sDone">Done</button></div>`,
   el=>{const drawCap=()=>{el.querySelector('#capV').textContent=cap||'Off'; el.querySelector('#capH').textContent=cap?'measurements a day':'no limit';};
     drawCap();
+    { const days={}; Object.keys(I.profiles).forEach(s=>{if(I.profiles[s].day) days[s]=+I.profiles[s].day;});
+      const nd=IEP.need(I,cal(),addDays(today(),56),today(),{days}), r=Math.round(nd.perDay*10)/10;
+      el.querySelector('#needN').innerHTML=nd.total?`Your goals need about <b>${r} measurements a school day</b> over the next 8 weeks. A limit of ${Math.ceil(nd.perDay)+1}–${Math.ceil(nd.perDay)+2} leaves room for absences.`:'Add goals to see how many measurements a day you need.'; }
     const setCap=v=>{cap=Math.max(0,Math.min(40,v)); I=loadI(); I.settings=I.settings||{}; I.settings.cap=cap; saveI(); drawCap();};
     el.querySelector('#capM').addEventListener('click',()=>setCap(cap-1));
     el.querySelector('#capP').addEventListener('click',()=>setCap(cap+1));

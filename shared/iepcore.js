@@ -49,15 +49,24 @@
     if(w===0){const m=add(d,1); if(m<=hi) return m; const f=add(d,-2); return f>=lo?f:d;} return d;};
   const span=g=>({start:g.start||today(), end:g.end||add(g.start||today(),365)});
 
+  // the day a goal was added: its `created` stamp, else the time inside its id (ids are prefix + Date.now() in base 36)
+  const addedOn=g=>{ let ms=+g.created||0;
+    if(!ms){ const m=/^[a-z]([0-9a-z]{8})/.exec(g.id||''); const v=m?parseInt(m[1],36):0; if(v>1.7e12&&v<2.2e12) ms=v; }
+    return ms?ymd(new Date(ms)):'0000-00-00'; };
   // slots for one goal from its start up to `until` (default: 8 weeks ahead)
   function schedule(g,data,cal,until,now){
     const t=now||today(), sp=span(g), n=Math.max(1,Math.min(20,(g.sched&&g.sched.n)||1)), per=(g.sched&&g.sched.per)||'month';
     const to=until&&until<sp.end?until:sp.end;
+    const made=addedOn(g);
     const pts=data.filter(d=>d.goal===g.id).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.t||0)-(b.t||0));
     const slots=[];
     windows(per,cal,sp.start,to).forEach(w=>{
       const ws=w.start<sp.start?sp.start:w.start, we=w.end>sp.end?sp.end:w.end; if(we<ws) return;
       const len=diff(ws,we)+1, inW=pts.filter(p=>p.date>=w.start&&p.date<=w.end);
+      // nothing is owed before the goal was added to the app; a goal added late in a period
+      // (under half left and under two weeks) begins with the next period
+      const from=made>ws?made:ws, left=diff(from,we)+1;
+      if(!inW.length&&w.start<from&&(left<1||(left*2<diff(w.start,w.end)+1&&left<14))) return;
       for(let k=0;k<n;k++){
         const s=add(ws,Math.floor(len*k/n)), e=add(ws,Math.max(0,Math.floor(len*(k+1)/n)-1));
         const se=e<s?s:e, target=offWeekendWithin(add(s,Math.floor(diff(s,se)/2)),s,se);
@@ -111,7 +120,8 @@
 
   /* Spread measurements so no school day is overloaded.
      Each open slot gets an ideal day: a plan date if set; otherwise the student's measuring day
-     (first one inside the slot), else today when due/overdue, else the slot's target.
+     (first one inside the slot), else today when overdue, else the student's fixed spot spread across
+     the slot's school days (shared with their other goals when the periods overlap).
      Days are filled in order up to `cap` measurements; a student's measurements on the same day stay
      together. Anything that would slip past its deadline stays put and is flagged over the limit.
      opts: {cap, days:{sid:1..5}} where 1 = Monday. */
@@ -120,6 +130,11 @@
   function balance(I,cal,to,now,opts){
     const t=now||today(), start=nextSchool(t), cap=Math.max(0,+(opts&&opts.cap)||0), days=(opts&&opts.days)||{};
     const items=[];
+    // each student gets a fixed spot in every period (spread across the student list), so a period's
+    // measurements are spread over its school days instead of piling up at the midpoint
+    const sids=[...new Set(Object.values(I.goals).filter(g=>!g.status||g.status==='active').map(g=>g.sid))].sort();
+    const frac=sid=>(sids.indexOf(sid)+0.5)/Math.max(1,sids.length);
+    const chosen={}; // sid -> days already picked, so a student's goals share a day when their periods allow
     Object.values(I.goals).forEach(g=>{ if(g.status&&g.status!=='active') return;
       const sc=schedule(g,I.data,cal,to,t);
       sc.slots.forEach(s=>{ if(s.state==='done'||s.state==='missed') return;
@@ -129,13 +144,21 @@
         else{
           const md=+days[g.sid]||0;
           if(md){ let d=s.start>start?s.start:start; while(d<=s.end&&wd(d)!==md) d=add(d,1); ideal=d<=s.end?d:null; }
-          if(!ideal) ideal=late?start:(s.target<start?start:s.target);
+          if(!ideal&&s.state==='overdue') ideal=start;
+          if(!ideal){ const lo=s.start>start?s.start:start, sd=[]; for(let d=lo;d<=s.end;d=add(d,1)) if(isSchool(d)) sd.push(d);
+            ideal=sd.length?sd[Math.min(sd.length-1,Math.floor(frac(g.sid)*sd.length))]:start; ideal={spread:ideal,lo,hi:s.end}; }
         }
+        if(typeof ideal==='object'){ items.push({goal:g,sid:g.sid,cls:g.cls,slot:s,spread:ideal,deadline:s.end<start?start:s.end,overdue:s.state==='overdue',planned:false}); return; }
         ideal=s.planned?ideal:nextSchool(ideal);
         if(ideal>to) return;
         items.push({goal:g,sid:g.sid,cls:g.cls,slot:s,ideal,deadline:s.end<start?start:s.end,overdue:s.state==='overdue',planned:!!s.planned});
       });
     });
+    // spread items: shortest periods first; reuse a day the student already has when it fits the period
+    items.filter(x=>x.spread).sort((a,b)=>diff(a.spread.lo,a.spread.hi)-diff(b.spread.lo,b.spread.hi)).forEach(x=>{
+      const c=(chosen[x.sid]=chosen[x.sid]||[]), hit=c.find(d=>d>=x.spread.lo&&d<=x.spread.hi);
+      x.ideal=hit||x.spread.spread; if(!hit) c.push(x.ideal); delete x.spread;});
+    for(let i=items.length-1;i>=0;i--) if(items[i].ideal>to) items.splice(i,1);
     if(!cap){ items.forEach(x=>x.day=x.ideal); return items.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0); }
     // bundle each student's items that want the same day
     const bundles=new Map();
@@ -162,9 +185,16 @@
     });
     return out.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
   }
+  // average measurements needed per school day from now to `to` (no limit applied)
+  function need(I,cal,to,now,opts){
+    const t=now||today(), r=balance(I,cal,to,t,Object.assign({},opts,{cap:0})); let n=0;
+    for(let d=nextSchool(t);d<=to;d=add(d,1)) if(isSchool(d)) n++;
+    const busy={}; r.forEach(x=>{busy[x.day]=(busy[x.day]||0)+1;});
+    return {perDay:n?r.filter(x=>x.day<=to).length/n:0, days:n, total:r.length, max:Math.max(0,...Object.values(busy))};
+  }
   const schedText=s=>`${(s&&s.n)||1} time${((s&&s.n)||1)>1?'s':''} per ${PER[(s&&s.per)||'month']}`;
   const fill=(text,name)=>String(text||'').replace(/\{\{\s*student(\s*name)?\s*\}\}/gi,name||'the student');
 
-  const api={KEY,PER,load,save,quarters,windows,schedule,agenda,upcoming,balance,criteria,critText,schedText,fill,ymd,add,diff,today,parse,isSchool,nextSchool};
+  const api={KEY,PER,load,save,quarters,windows,schedule,agenda,upcoming,balance,need,criteria,critText,schedText,fill,ymd,add,diff,today,parse,isSchool,nextSchool};
   if(typeof module!=='undefined') module.exports=api; else root.IEP=api;
 })(typeof window!=='undefined'?window:globalThis);
