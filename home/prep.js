@@ -18,7 +18,8 @@ const hm=t=>{if(!t) return ''; const [h,m]=t.split(':').map(Number); return ((h+
 const boxes=g=>{const c=g.criteria||{}; return c.trials!==false&&c.y?Array.from({length:c.y},(_,k)=>`${k+1}☐`).join(' '):'___ / ___ = ___%';};
 function periodsOn(d){
   const wd=IEP.parse(d).getDay(), byName={}; Object.keys(D.classes).forEach(c=>byName[String(D.classes[c].name).toLowerCase()]=c);
-  return ((D.bell&&D.bell.periods)||[]).map(p=>{const label=(p.days||{})[wd]||''; const tok=label.toLowerCase().split(/[\s,·\-–\/]+/);
+  const mins=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||''); return m?+m[1]*60+ +m[2]:9999;};
+  return ((D.bell&&D.bell.periods)||[]).slice().sort((a,b)=>mins(a.start)-mins(b.start)).map(p=>{const label=(p.days||{})[wd]||''; const tok=label.toLowerCase().split(/[\s,·\-–\/]+/);
     const cls=tok.map(x=>byName[x]).find(Boolean)||null; return {p,label,cls,subj:subjOf(label)};});
 }
 function daySheetHtml(d){

@@ -535,7 +535,8 @@ $('addGp').addEventListener('click',()=>{fresh(); const c=cal(); const last=c.pe
 const WD=['Mon','Tue','Wed','Thu','Fri'];
 function bell(){D.bell=D.bell||{periods:[]}; D.bell.periods=D.bell.periods||[]; return D.bell;}
 function renderBells(){
-  const b=bell();
+  const b=bell(); const mins=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||''); return m?+m[1]*60+ +m[2]:9999;};
+  b.periods.sort((x,y)=>mins(x.start)-mins(y.start));
   $('bellOpts').innerHTML=Object.values(D.classes).flatMap(c=>[c.name+' ELA',c.name+' Math']).concat(['Prep','Lunch']).map(o=>`<option value="${esc(o)}">`).join('');
   $('bells').innerHTML=b.periods.length?b.periods.map((p,i)=>`<div class="bellrow" data-i="${i}">
       <div class="bar" style="flex-wrap:wrap"><input type="text" data-f="name" value="${esc(p.name)}" style="width:130px" aria-label="Period name" enterkeyhint="done">
@@ -547,10 +548,12 @@ function renderBells(){
 const saveBells=()=>{fresh(); const b=bell();
   b.periods=[...document.querySelectorAll('#bells [data-i]')].map((row,i)=>{const days={}; row.querySelectorAll('[data-d]').forEach(x=>{const v=x.value.trim().slice(0,40); if(v) days[x.dataset.d]=v;});
     return {id:(D.bell.periods[i]||{}).id||newId('bp'),name:row.querySelector('[data-f=name]').value.trim()||('Period '+(i+1)),start:row.querySelector('[data-f=start]').value,end:row.querySelector('[data-f=end]').value,days};})
-    .sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:(a.start||'99')>(b.start||'99')?1:0);
+    .sort((a,b)=>{const m=t=>{const x=/^(\d{1,2}):(\d{2})/.exec(t||''); return x?+x[1]*60+ +x[2]:9999;}; return m(a.start)-m(b.start);});
   // redraw only when the order changed, so tapping the next box doesn't lose focus
-  const before=[...document.querySelectorAll('#bells [data-i]')].length, moved=b.periods.some((p,i)=>{const r=document.querySelectorAll('#bells [data-i]')[i]; return !r||r.querySelector('[data-f=name]').value.trim()!==p.name;});
-  commit(); if(moved||before!==b.periods.length) renderBells();};
+  const rows=[...document.querySelectorAll('#bells [data-i]')], mins=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||''); return m?+m[1]*60+ +m[2]:9999;};
+  const order=rows.map((r,i)=>i).sort((x,y)=>mins(rows[x].querySelector('[data-f=start]').value)-mins(rows[y].querySelector('[data-f=start]').value));
+  const moved=order.some((v,i)=>v!==i);
+  commit(); if(moved) renderBells();};
 $('bells').addEventListener('change',saveBells);
 $('bells').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();e.target.blur();}});
 $('bells').addEventListener('click',e=>{const x=e.target.closest('.belldel'); if(!x) return; x.closest('[data-i]').remove(); saveBells(); renderBells();});
