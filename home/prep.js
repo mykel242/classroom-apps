@@ -9,8 +9,36 @@ function skipMeasure(gid,day){
 function dayItems(d){ return bal().filter(x=>x.day===d&&sidInScope(x.sid)); }
 function bySid(items){ const m=new Map(); items.forEach(x=>{if(!m.has(x.sid)) m.set(x.sid,[]); m.get(x.sid).push(x);}); return m; }
 
-// ---------- printable data sheet: one block per student, trial boxes to fill in by hand
-function printDay(d){
+// ---------- day packet: page 1 is the day sheet (bell schedule, who to conference each period, follow-ups),
+// then one data-sheet section per student with full goal text and trial boxes
+const subjOf=t=>/math/i.test(t||'')?'math':/\b(ela|reading|writing|english|literacy|speech|language)\b/i.test(t||'')?'ela':'';
+// a goal's subject: from its area, else from math words in its text; anything else is "any time"
+const goalSubj=g=>subjOf(g.area)||(/\b(fractions?|equations?|operations?|products?|quotients?|multipl\w*|divi\w*|addition|subtraction|numbers?|integers?|decimals?)\b/i.test(g.text||'')?'math':'');
+const hm=t=>{if(!t) return ''; const [h,m]=t.split(':').map(Number); return ((h+11)%12+1)+':'+String(m).padStart(2,'0');};
+const boxes=g=>{const c=g.criteria||{}; return c.trials!==false&&c.y?Array.from({length:c.y},(_,k)=>`${k+1}☐`).join(' '):'___ / ___ = ___%';};
+function periodsOn(d){
+  const wd=IEP.parse(d).getDay(), byName={}; Object.keys(D.classes).forEach(c=>byName[String(D.classes[c].name).toLowerCase()]=c);
+  return ((D.bell&&D.bell.periods)||[]).map(p=>{const label=(p.days||{})[wd]||''; const tok=label.toLowerCase().split(/[\s,·\-–\/]+/);
+    const cls=tok.map(x=>byName[x]).find(Boolean)||null; return {p,label,cls,subj:subjOf(label)};});
+}
+function daySheetHtml(d){
+  const items=dayItems(d), per=periodsOn(d), placed=new Map();
+  items.forEach(x=>{const s=goalSubj(x.goal); const hit=s?per.find(q=>q.cls&&q.cls===x.cls&&q.subj===s):null;
+    const k=hit?hit.p.id:'any'; if(!placed.has(k)) placed.set(k,[]); placed.get(k).push(x);});
+  const list=xs=>{const m=bySid(xs); let h='<ul class="conf">'; m.forEach((l,sid)=>{h+=`<li><b>${esc(nameAny(sid))}</b>`+l.map(x=>`<div class="cg"><span>${esc(goalShort(x.goal))}</span><span class="cr">${esc(IEP.critText(x.goal.criteria||{}))}</span><span class="bx">${boxes(x.goal)}</span></div>`).join('')+'</li>';}); return h+'</ul>';};
+  let h=`<section class="dsheet"><h1>${esc(dayName(d))}</h1>`;
+  if(per.length){ per.forEach(q=>{const xs=placed.get(q.p.id)||[];
+    h+=`<div class="per"><div class="ph"><span class="pt">${esc(hm(q.p.start))}${q.p.end?'–'+esc(hm(q.p.end)):''}</span><b>${esc(q.p.name)}</b><span>${esc(q.label||'—')}</span>${xs.length?`<span class="pc">Conference: ${plural(xs.length,'measurement')}</span>`:''}</div>${xs.length?list(xs):''}</div>`;}); }
+  else h+=`<p>No bell schedule yet. Add it in Classroom setup → Calendar to sort measurements by period.</p>`;
+  const any=placed.get('any')||[];
+  if(any.length) h+=`<h2>Any time today</h2>`+list(any);
+  if(!items.length) h+=`<p>No measurements scheduled.</p>`;
+  const fus=A.entries.filter(e=>inScope(e.cls)&&e.fu&&e.fu.date&&!e.fu.done&&e.fu.date<=d);
+  h+=`<h2>Follow-ups and calls</h2>`+(fus.length?'<ul class="fu">'+fus.map(e=>`<li>☐ <b>${esc(e.fu.text||'Follow up')}</b> · ${esc(names(e.sids))}${e.fu.date<d?' · from '+esc(short(e.fu.date)):''}</li>`).join('')+'</ul>':'<p>None due.</p>');
+  h+=`<h2>Notes</h2><div class="lines"></div></section>`;
+  return h;
+}
+function dataSheetsHtml(d){
   const m=bySid(dayItems(d)); let h='';
   m.forEach((list,sid)=>{
     const nm=nameAny(sid), acc=(C.students[sid]||[]).map(a=>a.text+(a.note?' ('+a.note+')':''));
@@ -23,8 +51,13 @@ function printDay(d){
                :`<p class="boxes">Score: ______ / ______ = ______ %</p>`;
       h+=`<p class="ln">Notes:</p></div>`;});
     h+=`</section>`;});
-  if(!h) h='<p>Nothing scheduled.</p>';
-  $('printout').innerHTML=h; setTimeout(()=>window.print(),50);
+  return h;
+}
+function printDay(d){
+  D=Classroom.load(); A=loadA(); C=loadC();
+  const ds=dataSheetsHtml(d);
+  $('printout').innerHTML=daySheetHtml(d)+(ds?`<div class="pbreak"></div>`+ds:'');
+  setTimeout(()=>window.print(),50);
 }
 
 // ---------- copy for Gemini: student codes instead of names, names scrubbed from goal text

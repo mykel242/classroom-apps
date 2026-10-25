@@ -24,7 +24,7 @@
   // laps: {'class|room|YYYY-MM-DD': session}
   function exportDoc(d,build,laps){
     const doc={app:'classroom-setup',format:FORMAT,exported:new Date().toISOString(),build:build||null,
-      data:{classes:d.classes,rooms:d.rooms,defaultRoom:d.defaultRoom||{},charts:d.charts||{},calendar:d.calendar||null}};
+      data:{classes:d.classes,rooms:d.rooms,defaultRoom:d.defaultRoom||{},charts:d.charts||{},calendar:d.calendar||null,bell:d.bell||null}};
     if(laps&&Object.keys(laps).length) doc.laps=laps;
     return doc;
   }
@@ -87,6 +87,13 @@
         .map((p,i)=>({id:str(p.id)||('gp'+i),name:str(p.name)||('Period '+(i+1)),start:p.start,end:p.end})).sort((a,b)=>a.start<b.start?-1:1);
       if(okDay(cal.start)&&okDay(cal.end)&&cal.start<cal.end) out.calendar={start:cal.start,end:cal.end,periods};
       else if(periods.length) out.calendar={start:periods[0].start,end:periods[periods.length-1].end,periods};
+    }
+    // bell schedule: periods with HH:MM times and a label per weekday
+    const bl=src.bell, okT=v=>typeof v==='string'&&/^\d{2}:\d{2}$/.test(v);
+    if(bl&&typeof bl==='object'&&Array.isArray(bl.periods)){
+      out.bell={periods:bl.periods.filter(p=>p&&typeof p==='object').slice(0,20).map((p,i)=>{const days={};
+        Object.keys(p.days||{}).forEach(d=>{if(/^[1-5]$/.test(d)&&str(p.days[d])) days[d]=str(p.days[d]).slice(0,40);});
+        return {id:str(p.id)||('bp'+i),name:str(p.name)||('Period '+(i+1)),start:okT(p.start)?p.start:'',end:okT(p.end)?p.end:'',days};})};
     }
     if(skipped) warnings.push(`${skipped} damaged or unknown item${skipped>1?'s were':' was'} skipped.`);
     return out;
@@ -249,6 +256,13 @@
       res.calendar=useFile?JSON.parse(JSON.stringify(inc.calendar)):(cur.calendar||null);
       if(useFile&&JSON.stringify(inc.calendar)!==JSON.stringify(cur.calendar||null)) sum.push({title:'School calendar',lines:[`Set to ${descCal(inc.calendar)}`]});
       else if(inc.calendar&&JSON.stringify(inc.calendar)!==JSON.stringify(cur.calendar)) sum.push({title:'School calendar',lines:['Kept this tablet\'s calendar (the file has a different one)']});
+    }
+    // bell schedule: same rule as the calendar
+    if(inc.bell||cur.bell){
+      const useFile=inc.bell&&(!merge||!cur.bell||!(cur.bell.periods||[]).length);
+      res.bell=useFile?JSON.parse(JSON.stringify(inc.bell)):(cur.bell||null);
+      if(useFile&&JSON.stringify(inc.bell)!==JSON.stringify(cur.bell||null)) sum.push({title:'Bell schedule',lines:[`Set to ${inc.bell.periods.length} periods`]});
+      else if(inc.bell&&JSON.stringify(inc.bell)!==JSON.stringify(cur.bell)) sum.push({title:'Bell schedule',lines:['Kept this tablet\'s bell schedule (the file has a different one)']});
     }
     return {result:res,lapWrites,summary:sum,warnings:warn};
   }

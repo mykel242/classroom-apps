@@ -56,6 +56,11 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
 .pick button.seated{font-weight:500;color:var(--muted)}
 .pick button.here{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
 .pick button small{font:600 11px var(--mono);opacity:.8}
+.bellrow{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--card)}
+.belldays{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.belldays label{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--muted);min-width:0}
+.belldays input{width:100%;min-width:0;padding:8px;font-size:15px}
+input[type=time]{font:500 17px var(--sans);padding:9px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg)}
 </style>
 </head>
 <body>
@@ -145,6 +150,11 @@ textarea#paste{width:100%;min-height:160px;font:16px var(--sans);line-height:1.5
     <p class="hint">Worked out by splitting the school year into four equal parts. Used for goals measured "per quarter".</p>
     <div id="qtrs" class="hint"></div>
     <p class="hint" id="calMsg"></p>
+    <h2 style="margin-top:8px">Bell schedule</h2>
+    <p class="hint">Your periods and what you teach in each, by day. Write the class and subject, like "601 Math" or "601 ELA". Used for the printed day packet in Home.</p>
+    <datalist id="bellOpts"></datalist>
+    <div id="bells" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="bar"><button class="ghost" id="addBell">+ Add period</button><span class="grow"></span><button class="plain" id="bellCopy">Copy Monday to every day</button></div>
   </section>
 
   <!-- BACKUP -->
@@ -500,6 +510,7 @@ function renderCalendar(){
     :'<p class="hint">No grading periods yet. Add your three marking periods with their dates.</p>';
   const q=quarters(c); $('qtrs').innerHTML=q.length?q.map(x=>`${esc(x.name)}: ${esc(fmtD(x.start))} – ${esc(fmtD(x.end))}`).join('<br>'):'Set the school year dates to see quarters.';
   const prob=calProblems(c); $('calMsg').textContent=prob; $('calMsg').style.color=prob?'var(--not)':'';
+  renderBells();
 }
 const quarters=c=>IEP.quarters(c);
 function calProblems(c){
@@ -519,6 +530,34 @@ $('gps').addEventListener('click',e=>{const b=e.target.closest('.gpdel'); if(!b)
 $('addGp').addEventListener('click',()=>{fresh(); const c=cal(); const last=c.periods[c.periods.length-1];
   c.periods.push({id:newId('gp'),name:'Grading period '+(c.periods.length+1),start:'',end:''}); Classroom.save(D); renderCalendar();
   const rows=document.querySelectorAll('#gps [data-i]'); const r=rows[rows.length-1]; if(r) r.querySelector('[data-f=start]').focus();});
+
+// -------- bell schedule: periods with times, and what's taught each weekday
+const WD=['Mon','Tue','Wed','Thu','Fri'];
+function bell(){D.bell=D.bell||{periods:[]}; D.bell.periods=D.bell.periods||[]; return D.bell;}
+function renderBells(){
+  const b=bell();
+  $('bellOpts').innerHTML=Object.values(D.classes).flatMap(c=>[c.name+' ELA',c.name+' Math']).concat(['Prep','Lunch']).map(o=>`<option value="${esc(o)}">`).join('');
+  $('bells').innerHTML=b.periods.length?b.periods.map((p,i)=>`<div class="bellrow" data-i="${i}">
+      <div class="bar" style="flex-wrap:wrap"><input type="text" data-f="name" value="${esc(p.name)}" style="width:130px" aria-label="Period name" enterkeyhint="done">
+        <input type="time" data-f="start" value="${esc(p.start||'')}" aria-label="Starts"><span class="hint">to</span><input type="time" data-f="end" value="${esc(p.end||'')}" aria-label="Ends">
+        <span class="grow"></span><button type="button" class="plain belldel" style="color:var(--not);padding:0 6px">Remove</button></div>
+      <div class="belldays">${WD.map((w,d)=>`<label><span>${w}</span><input type="text" data-d="${d+1}" list="bellOpts" value="${esc((p.days||{})[d+1]||'')}" enterkeyhint="done"></label>`).join('')}</div></div>`).join('')
+    :'<p class="hint">No periods yet.</p>';
+}
+const saveBells=()=>{fresh(); const b=bell();
+  b.periods=[...document.querySelectorAll('#bells [data-i]')].map((row,i)=>{const days={}; row.querySelectorAll('[data-d]').forEach(x=>{const v=x.value.trim().slice(0,40); if(v) days[x.dataset.d]=v;});
+    return {id:(D.bell.periods[i]||{}).id||newId('bp'),name:row.querySelector('[data-f=name]').value.trim()||('Period '+(i+1)),start:row.querySelector('[data-f=start]').value,end:row.querySelector('[data-f=end]').value,days};})
+    .sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:(a.start||'99')>(b.start||'99')?1:0);
+  // redraw only when the order changed, so tapping the next box doesn't lose focus
+  const before=[...document.querySelectorAll('#bells [data-i]')].length, moved=b.periods.some((p,i)=>{const r=document.querySelectorAll('#bells [data-i]')[i]; return !r||r.querySelector('[data-f=name]').value.trim()!==p.name;});
+  commit(); if(moved||before!==b.periods.length) renderBells();};
+$('bells').addEventListener('change',saveBells);
+$('bells').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();e.target.blur();}});
+$('bells').addEventListener('click',e=>{const x=e.target.closest('.belldel'); if(!x) return; x.closest('[data-i]').remove(); saveBells(); renderBells();});
+$('addBell').addEventListener('click',()=>{fresh(); const b=bell(), last=b.periods[b.periods.length-1];
+  b.periods.push({id:newId('bp'),name:'Period '+(b.periods.length+1),start:last&&last.end||'',end:'',days:{}}); Classroom.save(D); renderBells();
+  const rows=document.querySelectorAll('#bells [data-i]'); const r=rows[rows.length-1]; if(r) r.querySelector('[data-f=end]').focus();});
+$('bellCopy').addEventListener('click',()=>{fresh(); bell().periods.forEach(p=>{const m=(p.days||{})[1]; p.days={}; if(m) [1,2,3,4,5].forEach(d=>p.days[d]=m);}); commit(); renderBells();});
 
 let t0='classes'; try{t0=sessionStorage.getItem('setupTab')||'classes'}catch(e){} if(!$('tab-'+t0)) t0='classes';
 showTab(t0);

@@ -83,7 +83,7 @@ function lapDays(){
     if(n)(out[day]=out[day]||[]).push({cls:c,room:r,laps:n});}}catch(e){}
   return out;
 }
-const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within one year,?\s*)?(the student\s*)?(will\s*)?/i,''); return (g.area?g.area+': ':'')+(t.length>90?t.slice(0,88).replace(/\s+\S*$/,'')+'…':t);};
+const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within (?:one|a) year,?\s*)?(the student\s*)?(will\s*)?/i,''); return (g.area?g.area+': ':'')+(t.length>90?t.slice(0,88).replace(/\s+\S*$/,'')+'…':t);};
 // one day's measurements grouped by student
 function whoBlock(items){
   const bySid=new Map(); items.forEach(x=>{if(!bySid.has(x.sid)) bySid.set(x.sid,[]); bySid.get(x.sid).push(x);});
@@ -158,7 +158,7 @@ function dayCard(d,items,fus,laps,isT){
   const cap=dailyCap(), over=items.some(x=>x.overCap);
   let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue)?'over':'due'}">${items.length}${cap?' / '+cap:''} measurement${items.length===1?'':'s'}</span>`:''}</div>`;
   if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit: some of these can't move later without missing their deadline.</div>`;
-  if(items.length) h+=whoBlock(items)+`<div class="dayacts"><button type="button" class="plain" data-print="${esc(d)}">Print data sheet</button><button type="button" class="plain" data-gem="${esc(d)}">Copy for Gemini</button></div>`;
+  if(items.length) h+=whoBlock(items)+`<div class="dayacts"><button type="button" class="plain" data-print="${esc(d)}">Print day packet</button><button type="button" class="plain" data-gem="${esc(d)}">Copy for Gemini</button></div>`;
   fus.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
   if(!items.length&&!fus.length&&!bits.length) h+=`<div class="done">${past?'Nothing recorded.':'Nothing scheduled.'}</div>`;
   if(bits.length) h+=`<div class="done">✓ ${bits.join(' · ')}</div>`;
