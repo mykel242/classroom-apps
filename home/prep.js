@@ -1,11 +1,5 @@
 /* Prep for a day's measurements: skip one to the next school day, print a data sheet, copy goals for Gemini (no names). */
 
-// move one measurement to the next school day after `day`
-function skipMeasure(gid,day){
-  I=loadI(); const g=I.goals[gid]; if(!g) return;
-  const to=IEP.nextSchool(IEP.add(day,1));
-  g.plan=to; g.updated=Date.now(); saveI(); toast('Moved to '+wkday(to)+' '+short(to)); render();
-}
 function dayItems(d){ return bal().filter(x=>x.day===d&&sidInScope(x.sid)); }
 function bySid(items){ const m=new Map(); items.forEach(x=>{if(!m.has(x.sid)) m.set(x.sid,[]); m.get(x.sid).push(x);}); return m; }
 
@@ -85,19 +79,27 @@ function geminiSheet(d){
       else{ta.select();document.execCommand('copy');ok();}});});
 }
 
-// ---------- move all of one student's measurements on `day` to another school day (before the earliest deadline)
-function reschedSheet(sid,day){
-  const items=dayItems(day).filter(x=>x.sid===sid); if(!items.length) return;
-  const last=items.reduce((a,x)=>x.deadline<a?x.deadline:a,'9999-12-31'), cap=dailyCap(), B=bal();
-  const opts=[]; let d=IEP.nextSchool(IEP.add(day,1));
-  while(opts.length<5){ opts.push(d); d=IEP.nextSchool(IEP.add(d,1)); }
-  const load=d=>B.filter(x=>x.day===d&&x.sid!==sid).length;
-  openSheet(`<h2>Reschedule ${esc(nameAny(sid))}</h2>
-    <p class="hint">${plural(items.length,'measurement')} from ${esc(dayName(day))}. Move to:</p>
-    ${opts.map(o=>{const late=o>last; return `<button class="item" data-to="${o}">${esc(dayName(o))}<small>${late?'past a deadline':(cap?load(o)+' / '+cap+' scheduled':'')}</small></button>`;}).join('')}
-    <div class="sticky-actions"><button class="ghost" id="rsC">Cancel</button></div>`,
-  el=>{el.querySelector('#rsC').addEventListener('click',closeSheet);
-    el.querySelectorAll('[data-to]').forEach(b=>b.addEventListener('click',()=>{
-      I=loadI(); const to=b.dataset.to; items.forEach(x=>{const g=I.goals[x.goal.id]; if(g){g.plan=to; g.updated=Date.now();}});
-      saveI(); closeSheet(); toast(nameAny(sid)+' moved to '+wkday(to)+' '+short(to)); render();}));});
+// ---------- move one measurement, or all of a student's for a day, to any school day (earlier or later)
+function moveSheet(items,day){
+  if(!items.length) return;
+  const t=today(), cap=dailyCap(), B=bal(), ids=new Set(items.map(x=>x.goal.id)), sid=items[0].sid, one=items.length===1;
+  const last=items.reduce((a,x)=>x.deadline<a?x.deadline:a,'9999-12-31');
+  const opts=[]; let d=IEP.nextSchool(t); while(opts.length<12){ if(d!==day) opts.push(d); d=IEP.nextSchool(IEP.add(d,1)); }
+  const load=o=>B.filter(x=>x.day===o&&!ids.has(x.goal.id)).length;
+  // where this student's class meets the goal's subject that day (from the bell schedule)
+  const meets=o=>{ if(!D.bell||!(D.bell.periods||[]).length) return ''; const subs=new Set(items.map(x=>goalSubj(x.goal)).filter(Boolean)); if(!subs.size) return '';
+    const hits=periodsOn(o).filter(q=>q.cls===items[0].cls&&subs.has(q.subj)).map(q=>q.p.name); return hits.length?hits.join(', '):'no class'; };
+  const anyPlanned=items.some(x=>x.planned);
+  openSheet(`<h2>Move · ${esc(nameAny(sid))}</h2>
+    <p class="hint" style="padding:0 6px">${one?esc(goalShort(items[0].goal)):plural(items.length,'measurement')} · now ${esc(dayName(day))}${last<'9999'?' · due by '+esc(short(last)):''}</p>
+    ${opts.map(o=>{const late=o>last, n=load(o), m=meets(o);
+      return `<button class="item" data-to="${o}"><span>${o===t?'Today · ':''}${esc(dayName(o))}</span><small>${late?'<span style="color:var(--not)">past deadline</span> · ':''}${m==='no class'?'no class · ':m?esc(m)+' · ':''}${cap?`${n} / ${cap}`:plural(n,'measurement')}</small></button>`;}).join('')}
+    <div class="field" style="padding:0 6px"><label for="mvOther">Or pick a date</label><input id="mvOther" type="date" min="${t}" style="width:190px"></div>
+    <div class="sticky-actions"><button class="ghost" id="mvC">Cancel</button>${anyPlanned?'<button class="ghost" id="mvAuto">Let the app choose</button>':''}</div>`,
+  el=>{const set=to=>{ I=loadI(); items.forEach(x=>{const g=I.goals[x.goal.id]; if(g){g.plan=to; g.updated=Date.now();}}); saveI(); closeSheet();
+      toast(to?(one?'Moved to ':nameAny(sid)+' moved to ')+wkday(to)+' '+short(to):'Back to automatic'); render(); };
+    el.querySelectorAll('[data-to]').forEach(b=>b.addEventListener('click',()=>set(b.dataset.to)));
+    el.querySelector('#mvOther').addEventListener('change',e=>{const v=e.target.value; if(!v) return; const w=IEP.parse(v).getDay(); if(w===0||w===6){toast('That\'s a weekend');return;} set(v);});
+    el.querySelector('#mvC').addEventListener('click',closeSheet);
+    const au=el.querySelector('#mvAuto'); if(au) au.addEventListener('click',()=>set(''));});
 }

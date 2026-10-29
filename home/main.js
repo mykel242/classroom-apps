@@ -88,7 +88,7 @@ const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within (?:one|a) y
 function whoBlock(items){
   const bySid=new Map(); items.forEach(x=>{if(!bySid.has(x.sid)) bySid.set(x.sid,[]); bySid.get(x.sid).push(x);});
   return [...bySid.entries()].map(([sid,list])=>`<div class="who"><div class="whohead"><button type="button" class="nm" data-prof="${esc(sid)}">${esc(nameAny(sid))} ›</button><button type="button" class="plain resched" data-resched="${esc(sid)}" data-day="${esc(list[0].day)}">Reschedule</button></div>
-    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to next school day">Skip ›</button></div>`).join('')}</div>`).join('');
+    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to another day">Move</button></div>`).join('')}</div>`).join('');
 }
 function renderToday(){
   const t=today(), mon=monday(weekOff), days=[0,1,2,3,4].map(i=>addDays(mon,i)), fri=days[4], thisWeek=weekOff===0;
@@ -141,7 +141,7 @@ function renderToday(){
   if($('goBank')) $('goBank').addEventListener('click',()=>{tab='bank';render();});
   $('view').onclick=e=>{
     const m=e.target.closest('[data-measure]'), p=e.target.closest('[data-prof]'), a=e.target.closest('[data-act]'), k=e.target.closest('[data-skip],[data-print],[data-gem],[data-resched]');
-    if(k){ if(k.dataset.resched) reschedSheet(k.dataset.resched,k.dataset.day); else if(k.dataset.skip) skipMeasure(k.dataset.skip,k.dataset.day); else if(k.dataset.print) printDay(k.dataset.print); else geminiSheet(k.dataset.gem); }
+    if(k){ if(k.dataset.resched) moveSheet(dayItems(k.dataset.day).filter(x=>x.sid===k.dataset.resched),k.dataset.day); else if(k.dataset.skip) moveSheet(dayItems(k.dataset.day).filter(x=>x.goal.id===k.dataset.skip),k.dataset.day); else if(k.dataset.print) printDay(k.dataset.print); else geminiSheet(k.dataset.gem); }
     else if(m){const g=I.goals[m.dataset.measure]; measureSheet([g],renderToday);}
     else if(p) goProfile(p.dataset.prof);
     else if(a) editEntry(A.entries.find(x=>x.id===a.dataset.act),null,renderToday);};
@@ -158,10 +158,11 @@ function dayCard(d,items,fus,laps,isT){
   const cap=dailyCap(), over=items.some(x=>x.overCap);
   let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue)?'over':'due'}">${items.length}${cap?' / '+cap:''} measurement${items.length===1?'':'s'}</span>`:''}</div>`;
   if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit: some of these can't move later without missing their deadline.</div>`;
-  if(items.length) h+=whoBlock(items)+`<div class="dayacts"><button type="button" class="plain" data-print="${esc(d)}">Print day packet</button><button type="button" class="plain" data-gem="${esc(d)}">Copy for Gemini</button></div>`;
+  if(items.length) h+=whoBlock(items);
   fus.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
   if(!items.length&&!fus.length&&!bits.length) h+=`<div class="done">${past?'Nothing recorded.':'Nothing scheduled.'}</div>`;
   if(bits.length) h+=`<div class="done">✓ ${bits.join(' · ')}</div>`;
+  h+=`<div class="dayacts"><button type="button" class="plain" data-print="${esc(d)}">Print day packet</button>${items.length?`<button type="button" class="plain" data-gem="${esc(d)}">Copy for Gemini</button>`:''}</div>`;
   return h+`</div>`;
 }
 
