@@ -32,7 +32,7 @@ const cal=()=>D.calendar||null;
 
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=P.cls==='all'||(P.cls&&D.classes[P.cls])?P.cls:'all';
-let tab=['today','students','bank','activity'].includes(P.tab)?P.tab:'today';
+let tab=['today','students','groups','bank','activity'].includes(P.tab)?P.tab:'today';
 let weekOff=0, profileSid=null, studView='profiles', actFilter='all', actStudent='', accView='student';
 const savePrefs=()=>{P.cls=cls;P.tab=tab;try{localStorage.setItem(PK,JSON.stringify(P))}catch(e){}};
 const classIds=()=>cls==='all'?Object.keys(D.classes):[cls];
@@ -68,7 +68,7 @@ function render(){
   D=Classroom.load(); I=loadI(); A=loadA(); C=loadC(); _bal=null;
   if(cls!=='all'&&!D.classes[cls]) cls='all';
   renderHead();
-  ({today:renderToday,students:renderStudents,bank:renderBank,activity:renderActivity})[tab]();
+  ({today:renderToday,students:renderStudents,groups:renderGroups,bank:renderBank,activity:renderActivity})[tab]();
 }
 function goProfile(sid){tab='students';profileSid=sid;savePrefs();render();window.scrollTo(0,0);}
 
@@ -88,7 +88,7 @@ const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within (?:one|a) y
 function whoBlock(items){
   const bySid=new Map(); items.forEach(x=>{if(!bySid.has(x.sid)) bySid.set(x.sid,[]); bySid.get(x.sid).push(x);});
   return [...bySid.entries()].map(([sid,list])=>`<div class="who"><div class="whohead"><button type="button" class="nm" data-prof="${esc(sid)}">${esc(nameAny(sid))} ›</button><button type="button" class="plain resched" data-resched="${esc(sid)}" data-day="${esc(list[0].day)}">Reschedule</button></div>
-    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to another day">Move</button></div>`).join('')}</div>`).join('');
+    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${groupOf(x.goal.id)?`<span class="tag grpt">${esc(groupOf(x.goal.id).name)}</span>`:''}${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to another day">Move</button></div>`).join('')}</div>`).join('');
 }
 function renderToday(){
   const t=today(), mon=monday(weekOff), days=[0,1,2,3,4].map(i=>addDays(mon,i)), fri=days[4], thisWeek=weekOff===0;

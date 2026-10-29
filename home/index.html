@@ -56,6 +56,14 @@ main{gap:12px;padding-top:0}
 .pgh .pa{margin-left:auto;width:180px;padding:6px 10px;font-size:15px}
 .pgt{font-size:15px;line-height:1.35}
 .flags{display:flex;gap:6px;flex-wrap:wrap}
+.grp .gm{display:flex;gap:8px;align-items:baseline;border-top:1px solid var(--line);padding:6px 0;flex-wrap:wrap}
+.grp .gm b{min-width:110px}
+.grp .gm .t{flex:1;min-width:200px}
+.grp .gm small{color:var(--muted)}
+.grp.sug{border-style:dashed}
+.pick{display:flex;gap:10px;align-items:flex-start;padding:8px 6px;border-top:1px solid var(--line);font-size:15px}
+.pick input{width:22px;height:22px;flex-shrink:0;margin-top:1px}
+.tag.grpt{background:var(--sunk);color:var(--fg)}
 .glr{display:flex;gap:6px;align-items:stretch}
 .glr .gl{flex:1;min-width:0}
 .glr .skip{min-height:44px;padding:0 10px;font-size:14px;flex-shrink:0}
@@ -176,6 +184,7 @@ textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.4
     <div class="seg tabs" id="tabs">
       <button type="button" data-t="today" aria-pressed="true">Today</button>
       <button type="button" data-t="students" aria-pressed="false">Students</button>
+      <button type="button" data-t="groups" aria-pressed="false">Groups</button>
       <button type="button" data-t="bank" aria-pressed="false">Goal bank</button>
       <button type="button" data-t="activity" aria-pressed="false">Activity</button>
     </div>
@@ -190,12 +199,14 @@ textarea.notes{width:100%;min-height:120px;font:15px var(--sans);line-height:1.4
 <script src="../shared/classroom.js"></script>
 <script src="../shared/iepcore.js"></script>
 <script src="../shared/iepparse.js"></script>
+<script src="../shared/goalgroups.js"></script>
 <script src="main.js"></script>
 <script src="students.js"></script>
 <script src="activity.js"></script>
 <script src="report.js"></script>
 <script src="prep.js"></script>
 <script src="paste.js"></script>
+<script src="groups.js"></script>
 <script src="backup.js"></script>
 <script>render();</script>
 <script src="../shared/version.js"></script>

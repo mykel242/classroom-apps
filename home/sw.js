@@ -1,7 +1,7 @@
 // Network first: always use the newest files when online, fall back to the saved copy offline.
-const BUILD='39';
+const BUILD='40';
 const NAME='home-'+BUILD;
-const FILES=['./','index.html','manifest.webmanifest','icon.svg','icon-512.png','main.js','students.js','activity.js','report.js','prep.js','paste.js','backup.js','../shared/classroom.css','../shared/classroom.js','../shared/app.js','../shared/version.js','../shared/iepcore.js','../shared/iepparse.js'];
+const FILES=['./','index.html','manifest.webmanifest','icon.svg','icon-512.png','main.js','students.js','activity.js','report.js','prep.js','paste.js','groups.js','backup.js','../shared/classroom.css','../shared/classroom.js','../shared/app.js','../shared/version.js','../shared/iepcore.js','../shared/iepparse.js','../shared/goalgroups.js'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(NAME).then(c=>Promise.all(FILES.map(f=>fetch(new Request(f,{cache:'reload'})).then(r=>r.ok&&c.put(f,r)).catch(()=>{})))));
   self.skipWaiting();

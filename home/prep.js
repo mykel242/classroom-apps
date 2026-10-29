@@ -20,7 +20,7 @@ function daySheetHtml(d){
   const items=dayItems(d), per=periodsOn(d), placed=new Map();
   items.forEach(x=>{const s=goalSubj(x.goal); const hit=s?per.find(q=>q.cls&&q.cls===x.cls&&q.subj===s):null;
     const k=hit?hit.p.id:'any'; if(!placed.has(k)) placed.set(k,[]); placed.get(k).push(x);});
-  const list=xs=>{const m=bySid(xs); let h='<ul class="conf">'; m.forEach((l,sid)=>{h+=`<li><b>${esc(nameAny(sid))}</b>`+l.map(x=>`<div class="cg"><span>${esc(goalShort(x.goal))}</span><span class="cr">${esc(IEP.critText(x.goal.criteria||{}))}</span><span class="bx">${boxes(x.goal)}</span></div>`).join('')+'</li>';}); return h+'</ul>';};
+  const list=xs=>{const m=bySid(xs); let h='<ul class="conf">'; m.forEach((l,sid)=>{h+=`<li><b>${esc(nameAny(sid))}</b>`+l.map(x=>`<div class="cg"><span>${groupOf(x.goal.id)?'<b>['+esc(groupOf(x.goal.id).name)+']</b> ':''}${esc(goalShort(x.goal))}</span><span class="cr">${esc(IEP.critText(x.goal.criteria||{}))}</span><span class="bx">${boxes(x.goal)}</span></div>`).join('')+'</li>';}); return h+'</ul>';};
   let h=`<section class="dsheet"><h1>${esc(dayName(d))}</h1>`;
   if(per.length){ per.forEach(q=>{const xs=placed.get(q.p.id)||[];
     h+=`<div class="per"><div class="ph"><span class="pt">${esc(hm(q.p.start))}${q.p.end?'–'+esc(hm(q.p.end)):''}</span><b>${esc(q.p.name)}</b><span>${esc(q.label||'—')}</span>${xs.length?`<span class="pc">Conference: ${plural(xs.length,'measurement')}</span>`:''}</div>${xs.length?list(xs):''}</div>`;}); }
@@ -80,7 +80,7 @@ function geminiSheet(d){
 }
 
 // ---------- move one measurement, or all of a student's for a day, to any school day (earlier or later)
-function moveSheet(items,day){
+function moveSheet(items,day,title){
   if(!items.length) return;
   const t=today(), cap=dailyCap(), B=bal(), ids=new Set(items.map(x=>x.goal.id)), sid=items[0].sid, one=items.length===1;
   const last=items.reduce((a,x)=>x.deadline<a?x.deadline:a,'9999-12-31');
@@ -90,14 +90,14 @@ function moveSheet(items,day){
   const meets=o=>{ if(!D.bell||!(D.bell.periods||[]).length) return ''; const subs=new Set(items.map(x=>goalSubj(x.goal)).filter(Boolean)); if(!subs.size) return '';
     const hits=periodsOn(o).filter(q=>q.cls===items[0].cls&&subs.has(q.subj)).map(q=>q.p.name); return hits.length?hits.join(', '):'no class'; };
   const anyPlanned=items.some(x=>x.planned);
-  openSheet(`<h2>Move · ${esc(nameAny(sid))}</h2>
-    <p class="hint" style="padding:0 6px">${one?esc(goalShort(items[0].goal)):plural(items.length,'measurement')} · now ${esc(dayName(day))}${last<'9999'?' · due by '+esc(short(last)):''}</p>
+  openSheet(`<h2>${title?'Plan together · '+esc(title):'Move · '+esc(nameAny(sid))}</h2>
+    <p class="hint" style="padding:0 6px">${title?esc(items.map(x=>nameAny(x.sid)).join(', ')):one?esc(goalShort(items[0].goal)):plural(items.length,'measurement')}${day?' · now '+esc(dayName(day)):''}${last<'9999'?' · first deadline '+esc(short(last)):''}</p>
     ${opts.map(o=>{const late=o>last, n=load(o), m=meets(o);
       return `<button class="item" data-to="${o}"><span>${o===t?'Today · ':''}${esc(dayName(o))}</span><small>${late?'<span style="color:var(--not)">past deadline</span> · ':''}${m==='no class'?'no class · ':m?esc(m)+' · ':''}${cap?`${n} / ${cap}`:plural(n,'measurement')}</small></button>`;}).join('')}
     <div class="field" style="padding:0 6px"><label for="mvOther">Or pick a date</label><input id="mvOther" type="date" min="${t}" style="width:190px"></div>
     <div class="sticky-actions"><button class="ghost" id="mvC">Cancel</button>${anyPlanned?'<button class="ghost" id="mvAuto">Let the app choose</button>':''}</div>`,
-  el=>{const set=to=>{ I=loadI(); items.forEach(x=>{const g=I.goals[x.goal.id]; if(g){g.plan=to; g.updated=Date.now();}}); saveI(); closeSheet();
-      toast(to?(one?'Moved to ':nameAny(sid)+' moved to ')+wkday(to)+' '+short(to):'Back to automatic'); render(); };
+  el=>{const set=to=>{ I=loadI(); items.forEach(x=>{const g=I.goals[x.goal.id]; if(g){g.plan=to; g.updated=Date.now();}}); saveI(); closeSheet(); if(title&&tab==='groups'){renderGroups();}
+      toast(to?(title?'Group planned for ':one?'Moved to ':nameAny(sid)+' moved to ')+wkday(to)+' '+short(to):'Back to automatic'); render(); };
     el.querySelectorAll('[data-to]').forEach(b=>b.addEventListener('click',()=>set(b.dataset.to)));
     el.querySelector('#mvOther').addEventListener('change',e=>{const v=e.target.value; if(!v) return; const w=IEP.parse(v).getDay(); if(w===0||w===6){toast('That\'s a weekend');return;} set(v);});
     el.querySelector('#mvC').addEventListener('click',closeSheet);

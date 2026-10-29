@@ -13,7 +13,7 @@
     A=loadA(); C=loadC(); I=loadI(); D=Classroom.load();
     const names={}; Object.keys(D.classes).forEach(c=>{names[c]={name:D.classes[c].name,students:Object.fromEntries((D.classes[c].students||[]).map(s=>[s.id,s.name]))};});
     return JSON.stringify({app:'classroom-home',format:FORMAT,exported:new Date().toISOString(),build:(window.APP_VERSION||{}).n||null,names,
-      iep:{bank:I.bank,goals:I.goals,data:I.data,profiles:I.profiles,codes:I.codes||{},settings:I.settings||{}},activity:A.entries,accommodations:C.students},null,2);
+      iep:{bank:I.bank,goals:I.goals,data:I.data,profiles:I.profiles,codes:I.codes||{},settings:I.settings||{},groups:I.groups||{}},activity:A.entries,accommodations:C.students},null,2);
   }
   const fileOf=(ext,type)=>new File([exportText()],'classroom-home-'+stamp()+'.'+ext,{type});
 
@@ -78,7 +78,9 @@
     const codes={}; Object.keys(ip.codes||{}).forEach(sid=>{const c=str(ip.codes[sid],6); if(/^[A-Z]{1,4}$/.test(c)) codes[sid]=c;});
     if(bad) warn.push(`${plural(bad,'damaged item')} ${bad===1?'was':'were'} skipped.`);
     const settings={}; const st=(ip.settings||{}); if(int(st.cap,0,50,-1)>=0) settings.cap=+st.cap;
-    return {ok:true,settings,codes,entries,acc,bank,goals,data,profiles,names:raw.names||{},warn,exported:raw.exported||null};
+    const groups={}; Object.values(ip.groups||{}).forEach(x=>{if(!x||typeof x!=='object'||!str(x.id)) return; const gl=(Array.isArray(x.goals)?x.goals:[]).map(v=>str(v)).filter(v=>goals[v]);
+      if(gl.length>=2) groups[str(x.id)]={id:str(x.id),name:str(x.name,80)||'Group',goals:gl,updated:+x.updated||0};});
+    return {ok:true,groups,settings,codes,entries,acc,bank,goals,data,profiles,names:raw.names||{},warn,exported:raw.exported||null};
   }
 
   // ---- line up classes and students with this tablet: by id, then by name
@@ -123,6 +125,9 @@
     Object.keys(f.codes||{}).forEach(s=>{const sid=mapSid(null,s); if(sid&&!res.codes[sid]&&!usedC.has(f.codes[s])){res.codes[sid]=f.codes[s]; usedC.add(f.codes[s]);}});
     // settings: keep this tablet's daily limit; take the file's only if none is set here
     res.settings=Object.assign({},f.settings||{},I.settings||{});
+    // probe groups: newer edit wins; keep only goals that exist after the merge
+    res.groups=Object.assign({},I.groups||{}); Object.values(f.groups||{}).forEach(x=>{const cur=res.groups[x.id]; if(!cur||(x.updated||0)>(cur.updated||0)) res.groups[x.id]=x;});
+    Object.values(res.groups).forEach(x=>{x.goals=x.goals.filter(id=>res.goals[id]); if(x.goals.length<2) delete res.groups[x.id];});
     if(lost.size) warn.push(`Data for ${plural(lost.size,'student')} not on this tablet's rosters was skipped.`);
     const L=[];
     if(cnt.gN||cnt.gU) L.push(`Goals: ${cnt.gN} new${cnt.gU?', '+cnt.gU+' updated':''}`);
@@ -163,7 +168,7 @@
       el.querySelector('#iApply').addEventListener('click',()=>{if(!pl) return;
         try{localStorage.setItem(UNDO,JSON.stringify({at:Date.now(),a:loadA(),c:loadC(),i:loadI()}));}catch(e){}
         A=loadA(); A.entries=pl.res.entries; C=loadC(); C.students=pl.res.students;
-        I=loadI(); I.bank=pl.res.bank; I.goals=pl.res.goals; I.data=pl.res.data; I.profiles=pl.res.profiles; I.codes=pl.res.codes; I.settings=pl.res.settings;
+        I=loadI(); I.bank=pl.res.bank; I.goals=pl.res.goals; I.data=pl.res.data; I.profiles=pl.res.profiles; I.codes=pl.res.codes; I.settings=pl.res.settings; I.groups=pl.res.groups;
         saveA(); saveC(); saveI(); closeSheet(); toast('Import finished'); render();});
     });
   }
