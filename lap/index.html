@@ -128,6 +128,11 @@
     <button class="item" id="mPrint">Print laps</button>
     <button class="item" id="mCopy">Copy CSV <small id="status"></small></button>
     <textarea id="csv" rows="4" readonly hidden aria-label="CSV text"></textarea>
+    <button class="item" id="mDel" style="color:var(--not)">Delete this lap…</button>
+    <div id="delconfirm" class="bar" hidden style="padding:4px 6px">
+      <span class="grow" id="deltxt"></span>
+      <button class="danger" id="delyes">Delete</button><button class="ghost" id="delno">Keep</button>
+    </div>
     <button class="item" id="mClear" style="color:var(--not)">Clear laps…</button>
     <div id="confirm" class="bar" hidden style="padding:4px 6px">
       <span class="grow" id="confirmtxt"></span>
@@ -343,7 +348,7 @@ $('backcur').addEventListener('click',()=>{if(isPast()){pinnedDay=null;build();}
 
 // menu
 const menu=$('menu');
-const closeMenu=()=>{menu.hidden=true;$('confirm').hidden=true;$('csv').hidden=true;};
+const closeMenu=()=>{menu.hidden=true;$('confirm').hidden=true;$('delconfirm').hidden=true;$('csv').hidden=true;};
 $('menuBtn').addEventListener('click',()=>{menu.hidden=false;});
 menu.addEventListener('click',e=>{if(e.target===menu)closeMenu();});
 
@@ -446,6 +451,13 @@ $('mCopy').addEventListener('click',()=>{
 });
 $('mClear').addEventListener('click',()=>{if(isPast()&&!unlocked){closeMenu();toast('This day is locked. Tap Unlock first to clear it.');return;} $('confirm').hidden=false});
 $('no').addEventListener('click',()=>{$('confirm').hidden=true});
+// delete the lap on screen (handy for practice laps); the remaining laps are renumbered
+$('mDel').addEventListener('click',()=>{const i=view!==null?view:st.laps.length-1, l=st.laps[i];
+  $('deltxt').textContent='Delete Lap '+(i+1)+(l&&l.q?' ("'+l.q.slice(0,40)+'")':'')+'?'; $('delconfirm').hidden=false;});
+$('delno').addEventListener('click',()=>{$('delconfirm').hidden=true});
+$('delyes').addEventListener('click',()=>{const i=view!==null?view:st.laps.length-1;
+  st.laps.splice(i,1); if(!st.laps.length) st.laps.push(blankLap());
+  view=null; unlocked=false; st.dirty=true; save(); $('delconfirm').hidden=true; closeMenu(); $('q').value=cur().q; render(); toast('Lap '+(i+1)+' deleted');});
 $('yes').addEventListener('click',()=>{try{localStorage.removeItem(key())}catch(e){} closeMenu(); build();});
 
 // refresh if Setup changed things
