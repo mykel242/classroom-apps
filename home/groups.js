@@ -188,9 +188,20 @@ function rebuildSheet(){
   const act=Object.values(I.goals).filter(g=>g.status==='active'), rules=goalRules();
   const planned=act.filter(g=>g.plan).length, ruled=act.filter(g=>rules[g.id]).length;
   openSheet(`<h2>Rebuild schedule</h2>
-    <p>${plural(ruled,'goal')} follow a group or probe schedule. ${plural(act.length-ruled,'goal')} have none and will be spread automatically within your daily limit.</p>
-    <p>${planned?`This clears ${plural(planned,'manual date')} you set with Move or Plan.`:'No manual dates to clear.'} Measurements you've already recorded are kept.</p>
-    <div class="sticky-actions"><button class="ghost" id="rbC">Cancel</button><button class="primary" id="rbG">Rebuild</button></div>`,
+    <p>Both options clear ${planned?plural(planned,'manual date'):'any manual dates'} set with Move or Plan. Recorded measurements and your groups are kept.</p>
+    <button class="item col" id="rbKeep"><b>Keep my schedules</b><small>Lay dates out again from the ${plural(ruled,'goal')} with an accepted schedule; the rest are spread automatically.</small></button>
+    <button class="item col" id="rbFresh"><b>Start over from suggestions</b><small>Remove every accepted schedule and accept fresh suggestions for all groups and single probes.</small></button>
+    <div class="sticky-actions"><button class="ghost" id="rbC">Cancel</button></div>`,
   el=>{el.querySelector('#rbC').addEventListener('click',closeSheet);
-    el.querySelector('#rbG').addEventListener('click',()=>{I=loadI(); Object.values(I.goals).forEach(g=>{if(g.plan){g.plan=''; g.updated=Date.now();}}); saveI(); closeSheet(); toast('Schedule rebuilt'); render();});});
+    const clearPlans=()=>{I=loadI(); Object.values(I.goals).forEach(g=>{if(g.plan){g.plan=''; g.updated=Date.now();}}); saveI();};
+    el.querySelector('#rbKeep').addEventListener('click',()=>{clearPlans(); closeSheet(); toast('Schedule rebuilt'); render();});
+    el.querySelector('#rbFresh').addEventListener('click',e=>confirmTap(e.currentTarget,'Tap again to start over',()=>{
+      clearPlans(); I=loadI();
+      Object.values(I.groups||{}).forEach(gr=>{delete gr.rule;}); Object.values(I.goals).forEach(g=>{if(g.rule){delete g.rule; g.updated=Date.now();}}); saveI();
+      // suggest one at a time, groups first, so each suggestion sees the ones before it
+      let n=0;
+      groupList().forEach(gr=>{const gs=liveGoals(gr); if(gs.length){saveRule('group',gr.id,suggestRule(gs)); n++;}});
+      const grouped=new Set(groupList().flatMap(x=>x.goals));
+      Object.values(I.goals).filter(g=>g.status==='active'&&!grouped.has(g.id)).forEach(g=>{saveRule('goal',g.id,suggestRule([I.goals[g.id]])); n++;});
+      closeSheet(); toast('Started over: '+plural(n,'schedule')+' suggested'); render();}));});
 }
