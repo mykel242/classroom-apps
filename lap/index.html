@@ -167,7 +167,7 @@ let D=Classroom.load();
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=(P.cls&&D.classes[P.cls])?P.cls:Object.keys(D.classes)[0];
 let room=Classroom.roomFor(D,cls,P);
-let st, info, cells=[], editing=false, selId=null, view=null, pinnedDay=null, day, filter=null;
+let st, info, cells=[], editing=false, selId=null, view=null, pinnedDay=null, day, filter=new Set(); // counters turned on: any of got/part/not/none
 // earlier laps and past days are locked; unlocking applies only to what you're looking at now
 let unlocked=false;
 const isHistory=()=>isPast()||(view!==null&&view<st.laps.length-1);
@@ -239,7 +239,7 @@ function openPicker(all){
 function build(){
   D=Classroom.load();
   info=Classroom.seats(D,room,cls);
-  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; filter=null; unlocked=false; fillDays();
+  day=pinnedDay||today(); migrate(); st=loadSt(); view=null; filter=new Set(); unlocked=false; fillDays();
   cells=Classroom.render($('seats'),info);
   $('board').hidden=isList();
   $('mEdit').hidden=isList();
@@ -280,14 +280,15 @@ function render(){
   });
   $('seats').classList.toggle('editing',editing);
   const c=counts(l), unchecked=counted().filter(x=>!l.marks[x.seat.id]).length;
-  const tb=(f,cl,lab,n)=>`<button type="button" class="${cl}" data-f="${f}" aria-pressed="${filter===f}">${lab} <b>${n}</b></button>`;
+  const tb=(f,cl,lab,n)=>`<button type="button" class="${cl}" data-f="${f}" aria-pressed="${filter.has(f)}">${lab} <b>${n}</b></button>`;
   $('tally').innerHTML=tb('got','g','✓',c.got)+tb('part','p','~',c.part)+tb('not','x','✗',c.not)+tb('none','','<em>Unchecked</em>',unchecked);
   // highlight only the seats behind the tapped counter
   const pool=new Set(counted().map(x=>x.seat.id));
-  $('seats').classList.toggle('filtering',!!filter&&!editing);
+  $('seats').classList.toggle('filtering',filter.size>0&&!editing);
   cells.forEach(({seat,el})=>{const m=l.marks[seat.id];
-    const match=filter==='none'?(pool.has(seat.id)&&!m):(!st.off[seat.id]&&m===filter);
-    el.classList.toggle('dim',!!filter&&!match);});
+    // a seat shows if it matches any counter that's turned on
+    const match=(filter.has('none')&&pool.has(seat.id)&&!m)||(!st.off[seat.id]&&!!m&&filter.has(m));
+    el.classList.toggle('dim',filter.size>0&&!match);});
   const on=view!==null?view:st.laps.length-1;
   $('hist').innerHTML=st.laps.map((l,i)=>{const c=counts(l);
     return `<button type="button" class="chip${on===i?' on':''}" data-i="${i}"><span class="t1">Lap ${i+1}${i===st.laps.length-1?' <i>Now</i>':''}<span style="margin-left:auto;color:var(--got)">✓${c.got}</span></span>`+
@@ -339,7 +340,7 @@ $('lockbtn').addEventListener('click',()=>{unlocked=!unlocked; render(); if(unlo
 $('newlap').addEventListener('click',()=>{view=null; unlocked=false; st.laps.push(blankLap()); st.dirty=true; save(); $('q').value=''; render(); $('q').focus();});
 
 $('tally').addEventListener('click',e=>{const b=e.target.closest('button[data-f]'); if(!b) return;
-  filter=filter===b.dataset.f?null:b.dataset.f; render();});
+  const f=b.dataset.f; if(filter.has(f)) filter.delete(f); else filter.add(f); render();});
 
 // recall a lap
 $('hist').addEventListener('click',e=>{const r=e.target.closest('.chip'); if(!r) return;
