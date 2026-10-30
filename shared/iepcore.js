@@ -127,6 +127,12 @@
      opts: {cap, days:{sid:1..5}} where 1 = Monday. */
   const isSchool=d=>{const w=wd(d); return w>0&&w<6;};
   const nextSchool=d=>{while(!isSchool(d)) d=add(d,1); return d;};
+  /* A recurring schedule rule {wd:1..5, every:N weeks, anchor:'YYYY-MM-DD' (a day on that weekday), pid:bell period id}.
+     ruleDays lists its dates; firstRuleDay finds the first one inside [lo,hi]. */
+  function firstRuleDay(r,lo,hi){ if(!r||!r.wd) return null; const n=Math.max(1,+r.every||1), anc=r.anchor||lo;
+    let d=lo; while(wd(d)!==+r.wd) d=add(d,1);
+    for(;d<=hi;d=add(d,7)){ const k=Math.round(diff(anc,d)/7); if(((k%n)+n)%n===0) return d; } return null; }
+  function ruleDays(r,from,to){ const out=[]; let d=from; while((d=firstRuleDay(r,d,to))){ out.push(d); d=add(d,1); } return out; }
   function balance(I,cal,to,now,opts){
     const t=now||today(), start=nextSchool(t), cap=Math.max(0,+(opts&&opts.cap)||0), days=(opts&&opts.days)||{};
     const items=[];
@@ -140,6 +146,9 @@
       sc.slots.forEach(s=>{ if(s.state==='done'||s.state==='missed') return;
         const late=s.state==='overdue'||s.state==='due';
         let ideal;
+        const rule=opts&&opts.rules&&opts.rules[g.id];
+        if(!s.planned&&rule&&s.state!=='overdue'){ const rd=firstRuleDay(rule,s.start>start?s.start:start,s.end);
+          if(rd){ if(rd<=to) items.push({goal:g,sid:g.sid,cls:g.cls,slot:s,ideal:rd,deadline:s.end,overdue:false,planned:true,ruled:true}); return; } }
         if(s.planned) ideal=s.planned;
         else{
           const md=+days[g.sid]||0;
@@ -195,6 +204,6 @@
   const schedText=s=>`${(s&&s.n)||1} time${((s&&s.n)||1)>1?'s':''} per ${PER[(s&&s.per)||'month']}`;
   const fill=(text,name)=>String(text||'').replace(/\{\{\s*student(\s*name)?\s*\}\}/gi,name||'the student');
 
-  const api={KEY,PER,load,save,quarters,windows,schedule,agenda,upcoming,balance,need,criteria,critText,schedText,fill,ymd,add,diff,today,parse,isSchool,nextSchool};
+  const api={KEY,PER,load,save,quarters,windows,schedule,agenda,upcoming,balance,need,firstRuleDay,ruleDays,criteria,critText,schedText,fill,ymd,add,diff,today,parse,isSchool,nextSchool};
   if(typeof module!=='undefined') module.exports=api; else root.IEP=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -18,7 +18,8 @@ function periodsOn(d){
 }
 function daySheetHtml(d){
   const items=dayItems(d), per=periodsOn(d), placed=new Map();
-  items.forEach(x=>{const s=goalSubj(x.goal); const hit=s?per.find(q=>q.cls&&q.cls===x.cls&&q.subj===s):null;
+  const rules=goalRules(), wdd=IEP.parse(d).getDay();
+  items.forEach(x=>{const s=goalSubj(x.goal), r=rules[x.goal.id]; const hit=(r&&r.pid&&+r.wd===wdd&&per.find(q=>q.p.id===r.pid))||(s?per.find(q=>q.cls&&q.cls===x.cls&&q.subj===s):null);
     const k=hit?hit.p.id:'any'; if(!placed.has(k)) placed.set(k,[]); placed.get(k).push(x);});
   const list=xs=>{const m=bySid(xs); let h='<ul class="conf">'; m.forEach((l,sid)=>{h+=`<li><b>${esc(nameAny(sid))}</b>`+l.map(x=>`<div class="cg"><span>${groupOf(x.goal.id)?'<b>['+esc(groupOf(x.goal.id).name)+']</b> ':''}${esc(goalShort(x.goal))}</span><span class="cr">${esc(IEP.critText(x.goal.criteria||{}))}</span><span class="bx">${boxes(x.goal)}</span></div>`).join('')+'</li>';}); return h+'</ul>';};
   let h=`<section class="dsheet"><h1>${esc(dayName(d))}</h1>`;

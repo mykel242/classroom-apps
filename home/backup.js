@@ -6,6 +6,7 @@
   const DAY=/^\d{4}-\d{2}-\d{2}$/;
   const lc=s=>String(s).trim().toLowerCase();
   const str=(v,max)=>typeof v==='string'?v.trim().slice(0,max||4000):'';
+  const cleanRule=r=>r&&typeof r==='object'&&+r.wd>=1&&+r.wd<=5?{wd:+r.wd,every:Math.max(1,Math.min(6,+r.every||1)),anchor:/^\d{4}-\d{2}-\d{2}$/.test(r.anchor||'')?r.anchor:'',pid:typeof r.pid==='string'?r.pid.slice(0,40):null}:null;
   const int=(v,lo,hi,def)=>{const n=Math.round(+v);return Number.isFinite(n)&&n>=lo&&n<=hi?n:def;};
   const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());};
 
@@ -67,6 +68,7 @@
       goals[g.id]={id:str(g.id),sid:str(g.sid),cls:str(g.cls),bank:str(g.bank)||null,area:str(g.area,60),text:str(g.text),criteria:cleanCrit(g.criteria),methods:cleanMeth(g.methods),sched:cleanSched(g.sched),
         start:DAY.test(g.start||'')?g.start:'',end:DAY.test(g.end||'')?g.end:'',status:STAT.has(g.status)?g.status:'active',plan:DAY.test(g.plan||'')?g.plan:'',updated:+g.updated||0};
       if(+g.created>0) goals[g.id].created=+g.created;
+      if(cleanRule(g.rule)) goals[g.id].rule=cleanRule(g.rule);
       if(g.iep&&typeof g.iep==='object') goals[g.id].iep={crit:str(g.iep.crit,500),meth:str(g.iep.meth,500),sched:str(g.iep.sched,200)};
       if(g.status==='met'&&DAY.test(g.metDate||'')) goals[g.id].metDate=g.metDate;});
     (Array.isArray(ip.data)?ip.data:[]).forEach(p=>{if(!p||!str(p.id)||!str(p.goal)||!DAY.test(p.date||'')||!(+p.pct>=0&&+p.pct<=100)||(!goals[p.goal]&&!I.goals[p.goal])){bad++;return;}
@@ -79,7 +81,7 @@
     if(bad) warn.push(`${plural(bad,'damaged item')} ${bad===1?'was':'were'} skipped.`);
     const settings={}; const st=(ip.settings||{}); if(int(st.cap,0,50,-1)>=0) settings.cap=+st.cap;
     const groups={}; Object.values(ip.groups||{}).forEach(x=>{if(!x||typeof x!=='object'||!str(x.id)) return; const gl=(Array.isArray(x.goals)?x.goals:[]).map(v=>str(v)).filter(v=>goals[v]);
-      if(gl.length>=2) groups[str(x.id)]={id:str(x.id),name:str(x.name,80)||'Group',goals:gl,updated:+x.updated||0};});
+      if(gl.length>=2) groups[str(x.id)]=Object.assign({id:str(x.id),name:str(x.name,80)||'Group',goals:gl,updated:+x.updated||0},cleanRule(x.rule)?{rule:cleanRule(x.rule)}:{});});
     return {ok:true,groups,settings,codes,entries,acc,bank,goals,data,profiles,names:raw.names||{},warn,exported:raw.exported||null};
   }
 

@@ -14,11 +14,15 @@ function renderGroups(){
   const sug=GoalGroups.suggest(active.filter(g=>!grouped.has(g.id)).map(g=>({id:g.id,sid:g.sid,subj:goalSubj(g),text:g.text})),MATCH[match])
     .filter(s=>!hide.has(s.ids.slice().sort().join('|')));
   const mine=groupList().filter(gr=>gr.goals.some(id=>I.goals[id]&&sidInScope(I.goals[id].sid)));
-  const row=g=>{const nx=nextFor(g.id); return `<div class="gm"><b>${esc(nameAny(g.sid))}</b><span class="t">${esc(goalShort(g))}</span><small>${esc(IEP.critText(g.criteria||{}))}${nx?' · '+esc(wkday(nx.day)+' '+short(nx.day)):''}</small></div>`;};
-  let h=`<div class="bar"><h2 class="grow">Probe groups</h2><button class="ghost" id="grNew">+ New group</button></div>
-    <p class="hint">Goals from different students that one probe can measure. Save a group to plan, measure and print it together.</p>`;
+  const row=g=>{const nx=nextFor(g.id); return `<div class="gm"><b>${esc(nameAny(g.sid))}</b><span class="t">${esc(goalShort(g))}</span><small>${esc(cadence(g))}${nx?' · next '+esc(wkday(nx.day)+' '+short(nx.day)):''}</small></div>`;};
+  const singles=active.filter(g=>!grouped.has(g.id)).sort((a,b)=>nameAny(a.sid).localeCompare(nameAny(b.sid)));
+  const needRule=mine.filter(gr=>!gr.rule&&liveGoals(gr).length).length+singles.filter(g=>!g.rule).length;
+  let h=`<div class="bar"><h2 class="grow">Probe groups</h2><button class="ghost" id="grNew">+ New group</button><button class="ghost" id="grRebuild">Rebuild schedule</button></div>
+    <p class="hint">Goals from different students that one probe can measure. Give each group a day and period that repeats; the scheduler fills in the dates.</p>
+    ${needRule?`<div class="note bar"><span class="grow">${plural(needRule,'group or probe')} without a schedule.</span><button class="primary" id="grAll" style="min-height:40px">Accept all suggestions</button></div>`:''}`;
   h+=mine.length?mine.map(gr=>{const gs=liveGoals(gr); return `<div class="card grp" data-g="${esc(gr.id)}"><div class="bar"><h3 class="grow">${esc(gr.name)}</h3><span class="tag">${plural(gs.length,'student')}</span></div>
       ${gs.map(row).join('')||'<div class="meta">No active goals left in this group.</div>'}
+      ${gs.length?schedLine('group',gr.id,gs,gr.rule,gr.name):''}
       <div class="btnrow"><button class="primary" data-gact="measure">Measure</button><button class="ghost" data-gact="plan">Plan together</button><button class="ghost" data-gact="gem">Copy for Gemini</button><span class="grow"></span><button class="plain" data-gact="edit">Edit</button></div></div>`;}).join('')
     :'<div class="card"><div class="meta">No saved groups yet. Save a suggestion below or make your own.</div></div>';
   h+=`<div class="sec"><h2>Suggested</h2><div class="seg" id="grM">${['close','medium','loose'].map(m=>`<button type="button" data-m="${m}" aria-pressed="${m===match}">${titleCase(m)}</button>`).join('')}</div></div>`;
@@ -27,11 +31,21 @@ function renderGroups(){
       ${gs.map(row).join('')}
       <div class="btnrow"><button class="primary" data-sact="save">Save group</button><button class="ghost" data-sact="no">Not a match</button></div></div>`;}).join('')
     :`<div class="card"><div class="meta">No similar goals found${match!=='loose'?'. Try "Loose" for wider matches.':'.'}</div></div>`;
+  h+=`<div class="sec"><h2>Single probes</h2></div><p class="hint">Goals not in a group. Each can have its own day and period.</p>`;
+  h+=singles.length?`<div class="card grp">`+singles.map(g=>`<div class="single">${row(g)}${schedLine('goal',g.id,[g],g.rule,nameAny(g.sid))}</div>`).join('')+`</div>`:'<div class="card"><div class="meta">Every active goal is in a group.</div></div>';
   $('view').innerHTML=h;
+  $('grRebuild').addEventListener('click',rebuildSheet);
+  if($('grAll')) $('grAll').addEventListener('click',()=>{ let n=0;
+    mine.filter(gr=>!gr.rule&&liveGoals(gr).length).forEach(gr=>{saveRule('group',gr.id,suggestRule(liveGoals(gr))); _bal=null; n++;});
+    singles.filter(g=>!g.rule).forEach(g=>{saveRule('goal',g.id,suggestRule([I.goals[g.id]])); _bal=null; n++;});
+    toast('Accepted '+plural(n,'schedule')); renderGroups();});
   $('grM').addEventListener('click',e=>{const b=e.target.closest('[data-m]'); if(!b) return; P.match=b.dataset.m; savePrefs(); renderGroups();});
   $('grNew').addEventListener('click',()=>groupEditor(null,[]));
   $('view').onclick=e=>{
-    const sa=e.target.closest('[data-sact]'), ga=e.target.closest('[data-gact]');
+    const sa=e.target.closest('[data-sact]'), ga=e.target.closest('[data-gact]'), ac=e.target.closest('[data-accept]'), ru=e.target.closest('[data-rule]');
+    if(ac){const [k,id]=ac.dataset.accept.split('|'); saveRule(k,id,JSON.parse(ac.dataset.r)); toast('Schedule saved'); renderGroups(); return;}
+    if(ru){const [k,id]=ru.dataset.rule.split('|'); const o=k==='group'?I.groups[id]:I.goals[id]; const gs=k==='group'?liveGoals(o):[o];
+      ruleSheet(k,id,gs,o.rule,k==='group'?o.name:nameAny(o.sid)); return;}
     if(sa){const c=sa.closest('[data-ids]'), ids=c.dataset.ids.split(',');
       if(sa.dataset.sact==='save') groupEditor(null,ids,c.dataset.name);
       else{ I=loadI(); I.groupsHide=(I.groupsHide||[]).concat(ids.slice().sort().join('|')).slice(-300); saveI(); renderGroups(); }}
@@ -88,4 +102,95 @@ function groupGemini(gr){
     el.querySelector('#gCopy').addEventListener('click',()=>{const ta=el.querySelector('#gT'), ok=()=>{closeSheet();toast('Copied. Paste into Gemini.');};
       if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(ok).catch(()=>{ta.select();document.execCommand('copy');ok();});
       else{ta.select();document.execCommand('copy');ok();}});});
+}
+
+// ================= recurring schedules for groups and single probes =================
+const WDN=['','Mon','Tue','Wed','Thu','Fri'], WDL=['','Mondays','Tuesdays','Wednesdays','Thursdays','Fridays'];
+const cadence=g=>{const s=g.sched||{}; return `${s.n||1}×/${({week:'week',month:'month',period:'grading period',quarter:'quarter',year:'year'})[s.per||'month']}`;};
+// weeks between measurements a goal needs (its slot length), from its schedule and the school calendar
+function slotWeeks(g){ const s=g.sched||{}, n=Math.max(1,+s.n||1), c=cal()||{};
+  const per=c.periods&&c.periods.length?c.periods.reduce((a,p)=>a+IEP.diff(p.start,p.end),0)/c.periods.length/7:13;
+  const yr=c.start&&c.end?IEP.diff(c.start,c.end)/7:40;
+  return ({week:1,month:4.3,quarter:yr/4,period:per,year:yr})[s.per||'month']/n; }
+const everyFor=goals=>Math.max(1,Math.min(6,Math.floor(Math.min(...goals.map(slotWeeks)))));
+function periodById(pid){ return ((D.bell&&D.bell.periods)||[]).find(p=>p.id===pid)||null; }
+function ruleText(r){ if(!r) return ''; const p=periodById(r.pid);
+  return `${r.every>1?'Every '+r.every+' weeks':'Every week'} · ${WDL[r.wd]}${p?' · '+p.name+(p.start?' ('+hm(p.start)+')':''):''}`; }
+const ruleNext=(r,n)=>IEP.ruleDays(r,IEP.nextSchool(today()),addDays(today(),7*(r.every||1)*n+7)).slice(0,n);
+// periods on weekday wd where these goals' class meets their subject (any of the class's periods if no subject)
+function periodsFor(goals,wd){ const cls=new Set(goals.map(g=>g.cls)), subj=goalSubj(goals[0]);
+  const mon=IEP.add(IEP.nextSchool(today()),0); let d=mon; while(IEP.parse(d).getDay()!==wd) d=addDays(d,1);
+  return periodsOn(d).filter(q=>q.cls&&cls.has(q.cls)&&(!subj||q.subj===subj)).map(q=>q.p); }
+function suggestRule(goals,skipIds){
+  const every=everyFor(goals), rules=goalRules(), ids=new Set(goals.map(g=>g.id));
+  // expected probes per week already on each weekday (each ruled goal adds 1/every); stay under the daily limit,
+  // and lean toward days these students already come up, so they're pulled fewer times
+  const lw=[0,0,0,0,0,0], mine=[0,0,0,0,0,0], sids=new Set(goals.map(g=>g.sid)), cap=dailyCap()||99, add=goals.length/every;
+  Object.keys(rules).forEach(id=>{if(ids.has(id)||(skipIds&&skipIds.has(id))||!I.goals[id]||I.goals[id].status!=='active') return; const r=rules[id];
+    lw[r.wd]+=1/Math.max(1,r.every||1); if(sids.has(I.goals[id].sid)) mine[r.wd]++;});
+  const score=wd=>lw[wd]+(lw[wd]+add>cap?100:0)-(mine[wd]?Math.min(1,lw[wd]?0.6:0.6):0);
+  const hasBell=D.bell&&(D.bell.periods||[]).length, cands=[];
+  for(let wd=1;wd<=5;wd++){ const ps=hasBell?periodsFor(goals,wd):[];
+    if(hasBell&&!ps.length) continue;
+    (ps.length?ps:[null]).forEach(p=>cands.push({wd,pid:p?p.id:null,score:score(wd)}));}
+  if(!cands.length) for(let wd=1;wd<=5;wd++) cands.push({wd,pid:null,score:score(wd)});
+  cands.sort((a,b)=>a.score-b.score||a.wd-b.wd);
+  const c=cands[0]; let anchor=IEP.nextSchool(today()); while(IEP.parse(anchor).getDay()!==c.wd) anchor=addDays(anchor,1);
+  return {wd:c.wd,pid:c.pid,every,anchor};
+}
+function saveRule(kind,id,rule){ I=loadI();
+  const o=kind==='group'?(I.groups||{})[id]:I.goals[id]; if(!o) return;
+  if(rule) o.rule=rule; else delete o.rule; o.updated=Date.now(); saveI(); }
+
+// pick weekday, period and how often; shows the next dates and how busy they are
+function ruleSheet(kind,id,goals,cur,title){
+  let r=Object.assign({},cur||suggestRule(goals));
+  const B=bal(), ids=new Set(goals.map(g=>g.id));
+  const draw=el=>{
+    let anchor=IEP.nextSchool(today()); while(IEP.parse(anchor).getDay()!==r.wd) anchor=addDays(anchor,1); r.anchor=cur&&cur.wd===r.wd&&cur.anchor?cur.anchor:anchor;
+    const ps=(D.bell&&(D.bell.periods||[]).length)?periodsFor(goals,r.wd):[];
+    if(r.pid&&!ps.some(p=>p.id===r.pid)) r.pid=ps.length?ps[0].id:null; if(!r.pid&&ps.length) r.pid=ps[0].id;
+    el.querySelector('#rsWd').innerHTML=[1,2,3,4,5].map(w=>`<button type="button" data-w="${w}" aria-pressed="${w===r.wd}">${WDN[w]}</button>`).join('');
+    el.querySelector('#rsP').innerHTML=ps.length?ps.map(p=>`<button type="button" data-p="${esc(p.id)}" aria-pressed="${p.id===r.pid}">${esc(p.name)}${p.start?' · '+esc(hm(p.start)):''}</button>`).join('')
+      :`<span class="hint">${D.bell&&(D.bell.periods||[]).length?'This class doesn\'t have that subject on '+WDL[r.wd]+'.':'Add your bell schedule in Classroom setup to pick a period.'}</span>`;
+    el.querySelector('#rsE').textContent=r.every>1?'every '+r.every+' weeks':'every week';
+    const next=ruleNext(r,4), cap=dailyCap();
+    el.querySelector('#rsN').innerHTML=next.map(d=>{const n=B.filter(x=>x.day===d&&!ids.has(x.goal.id)).length; return `<li>${esc(dayName(d))} <small>· ${n}${cap?' / '+cap:''} already</small></li>`;}).join('');
+    el.querySelector('#rsW').textContent=r.every>Math.floor(Math.min(...goals.map(slotWeeks)))?'Some goals need measuring more often than this; they\'ll be spread automatically in between.':'';
+  };
+  openSheet(`<h2>Schedule · ${esc(title)}</h2>
+    <p class="hint" style="padding:0 6px">${goals.map(g=>esc(nameAny(g.sid))+' '+cadence(g)).join(' · ')}</p>
+    <div class="field"><span class="lbl">Day</span><div class="seg" id="rsWd"></div></div>
+    <div class="field"><span class="lbl">Period</span><div class="chips" id="rsP"></div></div>
+    <div class="field"><span class="lbl">How often</span><div class="nums"><span class="step"><button type="button" id="rsM">−</button><output id="rsE"></output><button type="button" id="rsPl">+</button></span></div>
+      <span class="hint">Suggested: every ${everyFor(goals)} week${everyFor(goals)>1?'s':''}, the longest gap that still meets every goal's cadence.</span><span class="hint" id="rsW" style="color:var(--part)"></span></div>
+    <div class="field"><span class="lbl">Next dates</span><ul id="rsN" class="hint" style="margin:0;padding-left:18px"></ul></div>
+    <div class="sticky-actions">${cur?'<button class="ghost" id="rsX">Remove schedule</button>':'<button class="ghost" id="rsC">Cancel</button>'}<button class="primary" id="rsS">Save</button></div>`,
+  el=>{draw(el);
+    el.querySelector('#rsWd').addEventListener('click',e=>{const b=e.target.closest('[data-w]'); if(!b) return; r.wd=+b.dataset.w; r.pid=null; draw(el);});
+    el.querySelector('#rsP').addEventListener('click',e=>{const b=e.target.closest('[data-p]'); if(!b) return; r.pid=b.dataset.p; draw(el);});
+    el.querySelector('#rsM').addEventListener('click',()=>{r.every=Math.max(1,r.every-1); draw(el);});
+    el.querySelector('#rsPl').addEventListener('click',()=>{r.every=Math.min(6,r.every+1); draw(el);});
+    el.querySelector('#rsS').addEventListener('click',()=>{saveRule(kind,id,{wd:r.wd,pid:r.pid||null,every:r.every,anchor:r.anchor}); closeSheet(); toast('Schedule saved'); render();});
+    const c=el.querySelector('#rsC'); if(c) c.addEventListener('click',closeSheet);
+    const x=el.querySelector('#rsX'); if(x) x.addEventListener('click',()=>{saveRule(kind,id,null); closeSheet(); toast('Schedule removed'); render();});});
+}
+
+// the schedule line on a group card or single-probe row
+function schedLine(kind,id,goals,rule,title){
+  if(rule) return `<div class="sched"><span>📅 <b>${esc(ruleText(rule))}</b> · next ${ruleNext(rule,2).map(d=>esc(wkday(d)+' '+short(d))).join(', ')}</span><button class="plain" data-rule="${kind}|${esc(id)}">Change</button></div>`;
+  const s=suggestRule(goals);
+  return `<div class="sched sug"><span>Suggested: ${esc(ruleText(s))} · next ${ruleNext(s,2).map(d=>esc(wkday(d)+' '+short(d))).join(', ')}</span><button class="primary" data-accept="${kind}|${esc(id)}" data-r="${esc(JSON.stringify(s))}">Accept</button><button class="plain" data-rule="${kind}|${esc(id)}">Other…</button></div>`;
+}
+
+// clear manual Move/Plan dates so the whole schedule is laid out fresh from the accepted schedules
+function rebuildSheet(){
+  const act=Object.values(I.goals).filter(g=>g.status==='active'), rules=goalRules();
+  const planned=act.filter(g=>g.plan).length, ruled=act.filter(g=>rules[g.id]).length;
+  openSheet(`<h2>Rebuild schedule</h2>
+    <p>${plural(ruled,'goal')} follow a group or probe schedule. ${plural(act.length-ruled,'goal')} have none and will be spread automatically within your daily limit.</p>
+    <p>${planned?`This clears ${plural(planned,'manual date')} you set with Move or Plan.`:'No manual dates to clear.'} Measurements you've already recorded are kept.</p>
+    <div class="sticky-actions"><button class="ghost" id="rbC">Cancel</button><button class="primary" id="rbG">Rebuild</button></div>`,
+  el=>{el.querySelector('#rbC').addEventListener('click',closeSheet);
+    el.querySelector('#rbG').addEventListener('click',()=>{I=loadI(); Object.values(I.goals).forEach(g=>{if(g.plan){g.plan=''; g.updated=Date.now();}}); saveI(); closeSheet(); toast('Schedule rebuilt'); render();});});
 }

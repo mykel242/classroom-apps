@@ -24,7 +24,10 @@ const saveI=()=>{_bal=null; try{IEP.save(I)}catch(e){failSave();}};
 let _bal=null;
 const dailyCap=()=>(I.settings&&I.settings.cap!=null)?+I.settings.cap:6;
 function bal(){ if(!_bal){ const days={}; Object.keys(I.profiles).forEach(s=>{if(I.profiles[s].day) days[s]=+I.profiles[s].day;});
-  _bal=IEP.balance(I,cal(),addDays(today(),42),today(),{cap:dailyCap(),days}); } return _bal; }
+  _bal=IEP.balance(I,cal(),addDays(today(),42),today(),{cap:dailyCap(),days,rules:goalRules()}); } return _bal; }
+// recurring rules by goal id: a group's rule applies to all its goals; otherwise the goal's own
+function goalRules(){ const r={}; Object.values(I.goals).forEach(g=>{if(g.rule&&g.rule.wd) r[g.id]=g.rule;});
+  Object.values(I.groups||{}).forEach(gr=>{if(gr&&gr.rule&&gr.rule.wd) (gr.goals||[]).forEach(id=>{r[id]=gr.rule;});}); return r; }
 // the first scheduled measurement for each goal
 function nextFor(gid){ return bal().find(x=>x.goal.id===gid)||null; }
 const schoolToday=()=>IEP.nextSchool(today());
