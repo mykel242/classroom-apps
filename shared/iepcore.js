@@ -72,6 +72,7 @@
         const s=add(ws,Math.floor(len*k/n)), e=add(ws,Math.max(0,Math.floor(len*(k+1)/n)-1));
         const se=e<s?s:e, target=offWeekendWithin(add(s,Math.floor(diff(s,se)/2)),s,se);
         const filled=inW[k]||null;
+        if(!filled&&se<made) continue; // a part of the period that ended before tracking started isn't owed
         let state;
         if(filled) state='done';
         else if(se<t) state=we<t?'missed':'overdue';
@@ -135,7 +136,7 @@
     for(;d<=hi;d=add(d,7)){ const k=Math.round(diff(anc,d)/7); if(((k%n)+n)%n===0) return d; } return null; }
   function ruleDays(r,from,to){ const out=[]; let d=from; while((d=firstRuleDay(r,d,to))){ out.push(d); d=add(d,1); } return out; }
   function balance(I,cal,to,now,opts){
-    const t=now||today(), start=nextSchool(t), cap=Math.max(0,+(opts&&opts.cap)||0), days=(opts&&opts.days)||{};
+    const t=now||today(), tf=cal&&cal.trackFrom&&cal.trackFrom>t?cal.trackFrom:t, start=nextSchool(tf), cap=Math.max(0,+(opts&&opts.cap)||0), days=(opts&&opts.days)||{};
     const items=[];
     // each student gets a fixed spot in every period (spread across the student list), so a period's
     // measurements are spread over its school days instead of piling up at the midpoint
@@ -148,7 +149,9 @@
         const late=s.state==='overdue'||s.state==='due';
         let ideal;
         const rule=opts&&opts.rules&&opts.rules[g.id];
-        if(!s.planned&&rule&&s.state!=='overdue'){ const rd=firstRuleDay(rule,s.start>start?s.start:start,s.end);
+        if(!s.planned&&rule&&s.state!=='overdue'){ const lo0=s.start>start?s.start:start;
+          // the schedule's next date; if none falls inside this period, the period's last matching weekday (so a group stays together)
+          const rd=firstRuleDay(rule,lo0,s.end)||(()=>{let d=s.end,o=null; while(d>=lo0){ if(wd(d)===+rule.wd){o=d;break;} d=add(d,-1);} return o;})();
           if(rd){ if(rd<=to) items.push({goal:g,sid:g.sid,cls:g.cls,slot:s,ideal:rd,deadline:s.end,overdue:false,planned:true,ruled:true}); return; } }
         if(s.planned) ideal=s.planned;
         else{
@@ -175,7 +178,10 @@
     items.forEach(x=>{const k=x.ideal+'|'+x.sid; if(!bundles.has(k)) bundles.set(k,{day:x.ideal,sid:x.sid,items:[]}); bundles.get(k).items.push(x);});
     const queue=[...bundles.values()].sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:Math.min(...a.items.map(i=>i.deadline))<Math.min(...b.items.map(i=>i.deadline))?-1:1);
     const load={}, out=[];
-    const place=(x,d,over)=>{x.day=d; x.overCap=!!over; x.late=d>x.deadline; load[d]=(load[d]||0)+1; out.push(x);};
+    const grpOf=(opts&&opts.groups)||{}, seen={};
+    // the daily limit counts probes: a group probe counts once however many students are in it
+    const place=(x,d,over)=>{x.day=d; x.overCap=!!over; x.late=d>x.deadline; const k=grpOf[x.goal.id];
+      if(!k||!seen[d+'|'+k]){ load[d]=(load[d]||0)+1; if(k) seen[d+'|'+k]=1; } out.push(x);};
     // planned measurements are fixed and count toward the limit first
     queue.forEach(b=>b.items.filter(i=>i.planned).forEach(i=>place(i,i.ideal,false)));
     queue.forEach(b=>{
@@ -201,8 +207,9 @@
   function need(I,cal,to,now,opts){
     const t=now||today(), r=balance(I,cal,to,t,Object.assign({},opts,{cap:0})); let n=0;
     for(let d=nextSchool(t);d<=to;d=add(d,1)) if(isSchool(d)) n++;
-    const busy={}; r.forEach(x=>{busy[x.day]=(busy[x.day]||0)+1;});
-    return {perDay:n?r.filter(x=>x.day<=to).length/n:0, days:n, total:r.length, max:Math.max(0,...Object.values(busy))};
+    const grp=(opts&&opts.groups)||{}, keys=new Set(), busy={};
+    r.filter(x=>x.day<=to).forEach(x=>{const k=x.day+'|'+(grp[x.goal.id]||x.goal.id); if(keys.has(k)) return; keys.add(k); busy[x.day]=(busy[x.day]||0)+1;});
+    return {perDay:n?keys.size/n:0, days:n, total:r.length, max:Math.max(0,...Object.values(busy))};
   }
   const schedText=s=>`${(s&&s.n)||1} time${((s&&s.n)||1)>1?'s':''} per ${PER[(s&&s.per)||'month']}`;
   const fill=(text,name)=>String(text||'').replace(/\{\{\s*student(\s*name)?\s*\}\}/gi,name||'the student');

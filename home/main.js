@@ -24,7 +24,10 @@ const saveI=()=>{_bal=null; try{IEP.save(I)}catch(e){failSave();}};
 let _bal=null;
 const dailyCap=()=>(I.settings&&I.settings.cap!=null)?+I.settings.cap:6;
 function bal(){ if(!_bal){ const days={}; Object.keys(I.profiles).forEach(s=>{if(I.profiles[s].day) days[s]=+I.profiles[s].day;});
-  _bal=IEP.balance(I,cal(),addDays(today(),42),today(),{cap:dailyCap(),days,rules:goalRules()}); } return _bal; }
+  _bal=IEP.balance(I,cal(),addDays(today(),42),today(),{cap:dailyCap(),days,rules:goalRules(),groups:groupMap()}); } return _bal; }
+function groupMap(){ const m={}; Object.values(I.groups||{}).forEach(gr=>{if(gr&&Array.isArray(gr.goals)) gr.goals.forEach(id=>{m[id]=gr.id;});}); return m; }
+// probes on a day: a group probe counts once
+const probeCount=items=>{const g=groupMap(); return new Set(items.map(x=>g[x.goal.id]||x.goal.id)).size;};
 // recurring rules by goal id: a group's rule applies to all its goals; otherwise the goal's own
 function goalRules(){ const r={}; Object.values(I.goals).forEach(g=>{if(g.rule&&g.rule.wd) r[g.id]=g.rule;});
   Object.values(I.groups||{}).forEach(gr=>{if(gr&&gr.rule&&gr.rule.wd) (gr.goals||[]).forEach(id=>{r[id]=gr.rule;});}); return r; }
@@ -160,7 +163,7 @@ function dayCard(d,items,fus,laps,isT){
   ld.forEach(x=>bits.push(plural(x.laps,'lap')+' ('+esc((D.classes[x.cls]||{}).name||'')+')'));
   acts.forEach(e=>bits.push(esc(TSHORT[e.type]||'Note')+': '+esc(names(e.sids))));
   const cap=dailyCap(), over=items.some(x=>x.overCap);
-  let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue)?'over':'due'}">${items.length}${cap?' / '+cap:''} measurement${items.length===1?'':'s'}</span>`:''}</div>`;
+  let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue||x.late)?'over':'due'}">${probeCount(items)}${cap?' / '+cap:''} probe${probeCount(items)===1?'':'s'}${probeCount(items)!==items.length?' · '+items.length+' students':''}</span>`:''}</div>`;
   if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit because of dates you set or group schedules. Use Move to spread them out.</div>`;
   if(items.length) h+=whoBlock(items);
   fus.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
@@ -178,18 +181,18 @@ function schedSheet(){
   let cap=dailyCap();
   openSheet(`<h2>Scheduling</h2>
     <div class="field"><span class="lbl">Daily limit</span><div class="nums"><span class="step"><button type="button" id="capM">−</button><output id="capV"></output><button type="button" id="capP">+</button></span><span class="hint" id="capH"></span></div>
-      <span class="hint">Extra measurements move to the next school day, earliest deadline first. A student's measurements stay together.</span>
+      <span class="hint">Extra probes move to the next school day, earliest deadline first. A student's probes stay together.</span>
       <div class="note" id="needN"></div></div>
     <div class="field"><label for="trackF">Start tracking from</label><div class="bar"><input type="date" id="trackF" value="${esc((I.settings&&I.settings.trackFrom)||'')}" style="width:190px"><button type="button" class="plain" id="trackX">Clear</button></div>
       <span class="hint">Measurements due before this date aren't owed: they won't be scheduled or counted as missed.</span></div>
     <div class="field"><span class="lbl">Measuring day (optional)</span><span class="hint">Measurements for that student land on their day when the deadline allows.</span></div>
     <div class="items" id="mdays">${studs.length?studs.map(s=>{const d=+((I.profiles[s.id]||{}).day)||0; return `<div class="row"><span class="t">${esc(s.name)}</span><div class="seg" data-sid="${esc(s.id)}">${DN.map((n,i)=>`<button type="button" data-d="${i}" aria-pressed="${d===i}">${i?n:'Any'}</button>`).join('')}</div></div>`;}).join(''):'<div class="row"><span class="meta">Students with active goals appear here.</span></div>'}</div>
     <div class="sticky-actions"><button class="primary" id="sDone">Done</button></div>`,
-  el=>{const drawCap=()=>{el.querySelector('#capV').textContent=cap||'Off'; el.querySelector('#capH').textContent=cap?'measurements a day':'no limit';};
+  el=>{const drawCap=()=>{el.querySelector('#capV').textContent=cap||'Off'; el.querySelector('#capH').textContent=cap?'probes a day (a group probe counts once)':'no limit';};
     drawCap();
     { const days={}; Object.keys(I.profiles).forEach(s=>{if(I.profiles[s].day) days[s]=+I.profiles[s].day;});
-      const nd=IEP.need(I,cal(),addDays(today(),56),today(),{days}), r=Math.round(nd.perDay*10)/10;
-      el.querySelector('#needN').innerHTML=nd.total?`Your goals need about <b>${r} measurements a school day</b> over the next 8 weeks. A limit of ${Math.ceil(nd.perDay)+1}–${Math.ceil(nd.perDay)+2} leaves room for absences.`:'Add goals to see how many measurements a day you need.'; }
+      const nd=IEP.need(I,cal(),addDays(today(),56),today(),{days,rules:goalRules(),groups:groupMap()}), r=Math.round(nd.perDay*10)/10;
+      el.querySelector('#needN').innerHTML=nd.total?`Your goals need about <b>${r} probes a school day</b> over the next 8 weeks. A limit of ${Math.ceil(nd.perDay)+1}–${Math.ceil(nd.perDay)+2} leaves room for absences.`:'Add goals to see how many measurements a day you need.'; }
     const setTF=v=>{I=loadI(); I.settings=I.settings||{}; if(v) I.settings.trackFrom=v; else delete I.settings.trackFrom; saveI(); toast(v?'Tracking from '+short(v):'Tracking date cleared');};
     el.querySelector('#trackF').addEventListener('change',e=>setTF(e.target.value));
     el.querySelector('#trackX').addEventListener('click',()=>{el.querySelector('#trackF').value=''; setTF('');});

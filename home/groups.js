@@ -116,27 +116,32 @@ const everyFor=goals=>Math.max(1,Math.min(6,Math.floor(Math.min(...goals.map(slo
 function periodById(pid){ return ((D.bell&&D.bell.periods)||[]).find(p=>p.id===pid)||null; }
 function ruleText(r){ if(!r) return ''; const p=periodById(r.pid);
   return `${r.every>1?'Every '+r.every+' weeks':'Every week'} · ${WDL[r.wd]}${p?' · '+p.name+(p.start?' ('+hm(p.start)+')':''):''}`; }
-const ruleNext=(r,n)=>IEP.ruleDays(r,IEP.nextSchool(today()),addDays(today(),7*(r.every||1)*n+7)).slice(0,n);
+// first day anything can be scheduled: the later of today and the Start tracking from date
+const firstDay=()=>{const t=today(), tf=I.settings&&I.settings.trackFrom; return IEP.nextSchool(tf&&tf>t?tf:t);};
+const ruleNext=(r,n)=>IEP.ruleDays(r,firstDay(),addDays(firstDay(),7*(r.every||1)*n+7)).slice(0,n);
 // periods on weekday wd where these goals' class meets their subject (any of the class's periods if no subject)
 function periodsFor(goals,wd){ const cls=new Set(goals.map(g=>g.cls)), subj=goalSubj(goals[0]);
   const mon=IEP.add(IEP.nextSchool(today()),0); let d=mon; while(IEP.parse(d).getDay()!==wd) d=addDays(d,1);
   return periodsOn(d).filter(q=>q.cls&&cls.has(q.cls)&&(!subj||q.subj===subj)).map(q=>q.p); }
 function suggestRule(goals,skipIds){
-  const every=everyFor(goals), rules=goalRules(), ids=new Set(goals.map(g=>g.id));
-  // expected probes per week already on each weekday (each ruled goal adds 1/every); stay under the daily limit,
-  // and lean toward days these students already come up, so they're pulled fewer times
-  const lw=[0,0,0,0,0,0], mine=[0,0,0,0,0,0], sids=new Set(goals.map(g=>g.sid)), cap=dailyCap()||99, add=goals.length/every;
-  Object.keys(rules).forEach(id=>{if(ids.has(id)||(skipIds&&skipIds.has(id))||!I.goals[id]||I.goals[id].status!=='active') return; const r=rules[id];
-    lw[r.wd]+=1/Math.max(1,r.every||1); if(sids.has(I.goals[id].sid)) mine[r.wd]++;});
-  const score=wd=>lw[wd]+(lw[wd]+add>cap?100:0)-(mine[wd]?Math.min(1,lw[wd]?0.6:0.6):0);
+  const every=everyFor(goals), rules=goalRules(), ids=new Set(goals.map(g=>g.id)), sids=new Set(goals.map(g=>g.sid));
+  const f0=firstDay(), end=addDays(f0,7*12), cap=dailyCap()||99, size=1;
+  // how many probes the accepted schedules already put on each date over the next 12 weeks
+  // (probes, so a scheduled group counts once per date)
+  const occ={}, mine={}, gm=groupMap(), seenK={};
+  Object.keys(rules).forEach(id=>{const g=I.goals[id]; if(ids.has(id)||(skipIds&&skipIds.has(id))||!g||g.status!=='active') return;
+    IEP.ruleDays(rules[id],f0,end).forEach(d=>{const k=d+'|'+(gm[id]||id); if(!seenK[k]){seenK[k]=1; occ[d]=(occ[d]||0)+1;} if(sids.has(g.sid)) mine[d]=1;});});
   const hasBell=D.bell&&(D.bell.periods||[]).length, cands=[];
-  for(let wd=1;wd<=5;wd++){ const ps=hasBell?periodsFor(goals,wd):[];
-    if(hasBell&&!ps.length) continue;
-    (ps.length?ps:[null]).forEach(p=>cands.push({wd,pid:p?p.id:null,score:score(wd)}));}
-  if(!cands.length) for(let wd=1;wd<=5;wd++) cands.push({wd,pid:null,score:score(wd)});
+  for(let wd=1;wd<=5;wd++){ const ps=hasBell?periodsFor(goals,wd):[]; if(hasBell&&!ps.length) continue;
+    let first=f0; while(IEP.parse(first).getDay()!==wd) first=addDays(first,1);
+    // try each starting week so schedules that repeat every few weeks take turns
+    for(let k=0;k<every;k++){ const anchor=addDays(first,7*k), r={wd,every,anchor}, ds=IEP.ruleDays(r,f0,end); if(!ds.length) continue;
+      const peak=Math.max(...ds.map(d=>(occ[d]||0)+size)), avg=ds.reduce((t,d)=>t+(occ[d]||0),0)/ds.length, with_=ds.filter(d=>mine[d]).length/ds.length;
+      const score=(peak>cap?100+peak:peak)+avg*0.2-with_*0.8+k*0.01;
+      (ps.length?ps:[null]).forEach(p=>cands.push({wd,pid:p?p.id:null,anchor,score}));}}
+  if(!cands.length){ let a=f0; cands.push({wd:IEP.parse(a).getDay(),pid:null,anchor:a,score:0}); }
   cands.sort((a,b)=>a.score-b.score||a.wd-b.wd);
-  const c=cands[0]; let anchor=IEP.nextSchool(today()); while(IEP.parse(anchor).getDay()!==c.wd) anchor=addDays(anchor,1);
-  return {wd:c.wd,pid:c.pid,every,anchor};
+  const c=cands[0]; return {wd:c.wd,pid:c.pid,every,anchor:c.anchor};
 }
 function saveRule(kind,id,rule){ I=loadI();
   const o=kind==='group'?(I.groups||{})[id]:I.goals[id]; if(!o) return;
@@ -147,7 +152,7 @@ function ruleSheet(kind,id,goals,cur,title){
   let r=Object.assign({},cur||suggestRule(goals));
   const B=bal(), ids=new Set(goals.map(g=>g.id));
   const draw=el=>{
-    let anchor=IEP.nextSchool(today()); while(IEP.parse(anchor).getDay()!==r.wd) anchor=addDays(anchor,1); r.anchor=cur&&cur.wd===r.wd&&cur.anchor?cur.anchor:anchor;
+    let anchor=firstDay(); while(IEP.parse(anchor).getDay()!==r.wd) anchor=addDays(anchor,1); if(!(r.anchor&&IEP.parse(r.anchor).getDay()===r.wd&&r.anchor>=firstDay())) r.anchor=anchor;
     const ps=(D.bell&&(D.bell.periods||[]).length)?periodsFor(goals,r.wd):[];
     if(r.pid&&!ps.some(p=>p.id===r.pid)) r.pid=ps.length?ps[0].id:null; if(!r.pid&&ps.length) r.pid=ps[0].id;
     el.querySelector('#rsWd').innerHTML=[1,2,3,4,5].map(w=>`<button type="button" data-w="${w}" aria-pressed="${w===r.wd}">${WDN[w]}</button>`).join('');
@@ -185,23 +190,29 @@ function schedLine(kind,id,goals,rule,title){
 
 // clear manual Move/Plan dates so the whole schedule is laid out fresh from the accepted schedules
 function rebuildSheet(){
-  const act=Object.values(I.goals).filter(g=>g.status==='active'), rules=goalRules();
-  const planned=act.filter(g=>g.plan).length, ruled=act.filter(g=>rules[g.id]).length;
+  const act=Object.values(I.goals).filter(g=>g.status==='active'), rules=goalRules(), ruled=act.filter(g=>rules[g.id]).length;
+  let mon=IEP.nextSchool(addDays(today(),1)); while(IEP.parse(mon).getDay()!==1) mon=addDays(mon,1);
+  const tf=(I.settings&&I.settings.trackFrom)||mon;
   openSheet(`<h2>Rebuild schedule</h2>
-    <p>Both options clear ${planned?plural(planned,'manual date'):'any manual dates'} set with Move or Plan. Recorded measurements and your groups are kept.</p>
-    <button class="item col" id="rbKeep"><b>Keep my schedules</b><small>Lay dates out again from the ${plural(ruled,'goal')} with an accepted schedule; the rest are spread automatically.</small></button>
-    <button class="item col" id="rbFresh"><b>Start over from suggestions</b><small>Remove every accepted schedule and accept fresh suggestions for all groups and single probes.</small></button>
+    <p>Recorded measurements and your groups are always kept.</p>
+    <div class="field" style="padding:0 6px"><span class="lbl">Start fresh</span>
+      <div class="bar"><label for="rbDate">Start on</label><input type="date" id="rbDate" value="${esc(tf)}" style="width:190px"></div>
+      <span class="hint">Clears every Move/Plan date and every accepted schedule, forgives anything due before this date, then suggests new schedules for all groups and single probes.</span>
+      <button class="primary" id="rbFresh" style="align-self:flex-start">Start fresh</button></div>
+    <hr>
+    <button class="item col" id="rbKeep"><b>Keep my schedules</b><small>Only clear Move/Plan dates and lay out the ${plural(ruled,'goal')} with schedules again.</small></button>
     <div class="sticky-actions"><button class="ghost" id="rbC">Cancel</button></div>`,
   el=>{el.querySelector('#rbC').addEventListener('click',closeSheet);
     const clearPlans=()=>{I=loadI(); Object.values(I.goals).forEach(g=>{if(g.plan){g.plan=''; g.updated=Date.now();}}); saveI();};
     el.querySelector('#rbKeep').addEventListener('click',()=>{clearPlans(); closeSheet(); toast('Schedule rebuilt'); render();});
-    el.querySelector('#rbFresh').addEventListener('click',e=>confirmTap(e.currentTarget,'Tap again to start over',()=>{
-      clearPlans(); I=loadI();
+    el.querySelector('#rbFresh').addEventListener('click',e=>confirmTap(e.currentTarget,'Tap again to start fresh',()=>{
+      const from=el.querySelector('#rbDate').value;
+      clearPlans(); I=loadI(); I.settings=I.settings||{}; if(from) I.settings.trackFrom=from;
       Object.values(I.groups||{}).forEach(gr=>{delete gr.rule;}); Object.values(I.goals).forEach(g=>{if(g.rule){delete g.rule; g.updated=Date.now();}}); saveI();
       // suggest one at a time, groups first, so each suggestion sees the ones before it
       let n=0;
       groupList().forEach(gr=>{const gs=liveGoals(gr); if(gs.length){saveRule('group',gr.id,suggestRule(gs)); n++;}});
       const grouped=new Set(groupList().flatMap(x=>x.goals));
       Object.values(I.goals).filter(g=>g.status==='active'&&!grouped.has(g.id)).forEach(g=>{saveRule('goal',g.id,suggestRule([I.goals[g.id]])); n++;});
-      closeSheet(); toast('Started over: '+plural(n,'schedule')+' suggested'); render();}));});
+      closeSheet(); toast('Fresh start from '+short(from||today())+': '+plural(n,'schedule')); render();}));});
 }
