@@ -31,7 +31,8 @@ function goalRules(){ const r={}; Object.values(I.goals).forEach(g=>{if(g.rule&&
 // the first scheduled measurement for each goal
 function nextFor(gid){ return bal().find(x=>x.goal.id===gid)||null; }
 const schoolToday=()=>IEP.nextSchool(today());
-const cal=()=>D.calendar||null;
+// the school calendar, plus the date measurement tracking starts (nothing is owed before it)
+const cal=()=>{const c=D.calendar||null, tf=I.settings&&I.settings.trackFrom; return tf?Object.assign({start:'',end:'',periods:[]},c||{},{trackFrom:tf}):c;};
 
 let P={}; try{P=JSON.parse(localStorage.getItem(PK))||{}}catch(e){}
 let cls=P.cls==='all'||(P.cls&&D.classes[P.cls])?P.cls:'all';
@@ -91,7 +92,7 @@ const goalShort=g=>{const t=IEP.fill(g.text,'').replace(/^\s*(within (?:one|a) y
 function whoBlock(items){
   const bySid=new Map(); items.forEach(x=>{if(!bySid.has(x.sid)) bySid.set(x.sid,[]); bySid.get(x.sid).push(x);});
   return [...bySid.entries()].map(([sid,list])=>`<div class="who"><div class="whohead"><button type="button" class="nm" data-prof="${esc(sid)}">${esc(nameAny(sid))} ›</button><button type="button" class="plain resched" data-resched="${esc(sid)}" data-day="${esc(list[0].day)}">Reschedule</button></div>
-    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${groupOf(x.goal.id)?`<span class="tag grpt">${esc(groupOf(x.goal.id).name)}</span>`:''}${x.overdue?'<span class="tag over">overdue</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to another day">Move</button></div>`).join('')}</div>`).join('');
+    ${list.map(x=>`<div class="glr"><button type="button" class="gl" data-measure="${esc(x.goal.id)}"><span class="t">${esc(goalShort(x.goal))}</span>${groupOf(x.goal.id)?`<span class="tag grpt">${esc(groupOf(x.goal.id).name)}</span>`:''}${x.overdue||x.late?'<span class="tag over">late</span>':''}${x.slot.planned?'<span class="tag">planned</span>':''}<span class="tag due">Measure</span></button><button type="button" class="ghost skip" data-skip="${esc(x.goal.id)}" data-day="${esc(x.day)}" aria-label="Move to another day">Move</button></div>`).join('')}</div>`).join('');
 }
 function renderToday(){
   const t=today(), mon=monday(weekOff), days=[0,1,2,3,4].map(i=>addDays(mon,i)), fri=days[4], thisWeek=weekOff===0;
@@ -160,7 +161,7 @@ function dayCard(d,items,fus,laps,isT){
   acts.forEach(e=>bits.push(esc(TSHORT[e.type]||'Note')+': '+esc(names(e.sids))));
   const cap=dailyCap(), over=items.some(x=>x.overCap);
   let h=`<div class="card day ${isT?'today':''}"><div class="dayhead"><h3>${isT?'Today · ':''}${esc(dayName(d))}</h3>${items.length?`<span class="tag ${over||items.some(x=>x.overdue)?'over':'due'}">${items.length}${cap?' / '+cap:''} measurement${items.length===1?'':'s'}</span>`:''}</div>`;
-  if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit: some of these can't move later without missing their deadline.</div>`;
+  if(over) h+=`<div class="meta" style="color:var(--not)">Over your daily limit because of dates you set or group schedules. Use Move to spread them out.</div>`;
   if(items.length) h+=whoBlock(items);
   fus.forEach(e=>{h+=`<button type="button" class="it" data-act="${esc(e.id)}"><span class="k">Follow up</span><span class="v"><b>${esc(e.fu.text||'Follow up')}</b>${e.fu.date<t?' <span class="tag over">overdue</span>':''}<br><small>${esc(names(e.sids))} · from ${esc(short(e.date))}</small></span></button>`;});
   if(!items.length&&!fus.length&&!bits.length) h+=`<div class="done">${past?'Nothing recorded.':'Nothing scheduled.'}</div>`;
@@ -179,6 +180,8 @@ function schedSheet(){
     <div class="field"><span class="lbl">Daily limit</span><div class="nums"><span class="step"><button type="button" id="capM">−</button><output id="capV"></output><button type="button" id="capP">+</button></span><span class="hint" id="capH"></span></div>
       <span class="hint">Extra measurements move to the next school day, earliest deadline first. A student's measurements stay together.</span>
       <div class="note" id="needN"></div></div>
+    <div class="field"><label for="trackF">Start tracking from</label><div class="bar"><input type="date" id="trackF" value="${esc((I.settings&&I.settings.trackFrom)||'')}" style="width:190px"><button type="button" class="plain" id="trackX">Clear</button></div>
+      <span class="hint">Measurements due before this date aren't owed: they won't be scheduled or counted as missed.</span></div>
     <div class="field"><span class="lbl">Measuring day (optional)</span><span class="hint">Measurements for that student land on their day when the deadline allows.</span></div>
     <div class="items" id="mdays">${studs.length?studs.map(s=>{const d=+((I.profiles[s.id]||{}).day)||0; return `<div class="row"><span class="t">${esc(s.name)}</span><div class="seg" data-sid="${esc(s.id)}">${DN.map((n,i)=>`<button type="button" data-d="${i}" aria-pressed="${d===i}">${i?n:'Any'}</button>`).join('')}</div></div>`;}).join(''):'<div class="row"><span class="meta">Students with active goals appear here.</span></div>'}</div>
     <div class="sticky-actions"><button class="primary" id="sDone">Done</button></div>`,
@@ -187,6 +190,9 @@ function schedSheet(){
     { const days={}; Object.keys(I.profiles).forEach(s=>{if(I.profiles[s].day) days[s]=+I.profiles[s].day;});
       const nd=IEP.need(I,cal(),addDays(today(),56),today(),{days}), r=Math.round(nd.perDay*10)/10;
       el.querySelector('#needN').innerHTML=nd.total?`Your goals need about <b>${r} measurements a school day</b> over the next 8 weeks. A limit of ${Math.ceil(nd.perDay)+1}–${Math.ceil(nd.perDay)+2} leaves room for absences.`:'Add goals to see how many measurements a day you need.'; }
+    const setTF=v=>{I=loadI(); I.settings=I.settings||{}; if(v) I.settings.trackFrom=v; else delete I.settings.trackFrom; saveI(); toast(v?'Tracking from '+short(v):'Tracking date cleared');};
+    el.querySelector('#trackF').addEventListener('change',e=>setTF(e.target.value));
+    el.querySelector('#trackX').addEventListener('click',()=>{el.querySelector('#trackF').value=''; setTF('');});
     const setCap=v=>{cap=Math.max(0,Math.min(40,v)); I=loadI(); I.settings=I.settings||{}; I.settings.cap=cap; saveI(); drawCap();};
     el.querySelector('#capM').addEventListener('click',()=>setCap(cap-1));
     el.querySelector('#capP').addEventListener('click',()=>setCap(cap+1));

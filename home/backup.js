@@ -79,7 +79,7 @@
       profiles[sid]=Object.assign({iepDate:DAY.test(p.iepDate||'')?p.iepDate:'',reviewDate:DAY.test(p.reviewDate||'')?p.reviewDate:'',notes:str(p.notes,20000),updated:+p.updated||0},str(p.iepName,80)?{iepName:str(p.iepName,80)}:{},int(p.day,1,5,0)?{day:+p.day}:{});});
     const codes={}; Object.keys(ip.codes||{}).forEach(sid=>{const c=str(ip.codes[sid],6); if(/^[A-Z]{1,4}$/.test(c)) codes[sid]=c;});
     if(bad) warn.push(`${plural(bad,'damaged item')} ${bad===1?'was':'were'} skipped.`);
-    const settings={}; const st=(ip.settings||{}); if(int(st.cap,0,50,-1)>=0) settings.cap=+st.cap;
+    const settings={}; const st=(ip.settings||{}); if(int(st.cap,0,50,-1)>=0) settings.cap=+st.cap; if(DAY.test(st.trackFrom||'')) settings.trackFrom=st.trackFrom;
     const groups={}; Object.values(ip.groups||{}).forEach(x=>{if(!x||typeof x!=='object'||!str(x.id)) return; const gl=(Array.isArray(x.goals)?x.goals:[]).map(v=>str(v)).filter(v=>goals[v]);
       if(gl.length>=2) groups[str(x.id)]=Object.assign({id:str(x.id),name:str(x.name,80)||'Group',goals:gl,updated:+x.updated||0},cleanRule(x.rule)?{rule:cleanRule(x.rule)}:{});});
     return {ok:true,groups,settings,codes,entries,acc,bank,goals,data,profiles,names:raw.names||{},warn,exported:raw.exported||null};

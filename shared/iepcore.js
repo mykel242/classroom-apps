@@ -57,7 +57,8 @@
   function schedule(g,data,cal,until,now){
     const t=now||today(), sp=span(g), n=Math.max(1,Math.min(20,(g.sched&&g.sched.n)||1)), per=(g.sched&&g.sched.per)||'month';
     const to=until&&until<sp.end?until:sp.end;
-    const made=addedOn(g);
+    // nothing is owed before the goal was added, or before the date tracking starts (cal.trackFrom)
+    const tf=cal&&cal.trackFrom||'', made0=addedOn(g), made=tf>made0?tf:made0;
     const pts=data.filter(d=>d.goal===g.id).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.t||0)-(b.t||0));
     const slots=[];
     windows(per,cal,sp.start,to).forEach(w=>{
@@ -174,7 +175,7 @@
     items.forEach(x=>{const k=x.ideal+'|'+x.sid; if(!bundles.has(k)) bundles.set(k,{day:x.ideal,sid:x.sid,items:[]}); bundles.get(k).items.push(x);});
     const queue=[...bundles.values()].sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:Math.min(...a.items.map(i=>i.deadline))<Math.min(...b.items.map(i=>i.deadline))?-1:1);
     const load={}, out=[];
-    const place=(x,d,over)=>{x.day=d; x.overCap=!!over; load[d]=(load[d]||0)+1; out.push(x);};
+    const place=(x,d,over)=>{x.day=d; x.overCap=!!over; x.late=d>x.deadline; load[d]=(load[d]||0)+1; out.push(x);};
     // planned measurements are fixed and count toward the limit first
     queue.forEach(b=>b.items.filter(i=>i.planned).forEach(i=>place(i,i.ideal,false)));
     queue.forEach(b=>{
@@ -182,17 +183,19 @@
       while(rest.length){
         const next=nextSchool(add(d,1));
         if(cap-(load[d]||0)>=rest.length){ rest.forEach(i=>place(i,d,false)); rest=[]; break; }
-        // items that can't move past this day's slot deadline stay here, even over the limit
-        rest.filter(i=>i.deadline<next).forEach(i=>place(i,d,(load[d]||0)>=cap)); rest=rest.filter(i=>i.deadline>=next);
-        // a student with more goals than the limit is split: fill today's room, earliest deadline first
+        // never go over the limit: fill today's room (earliest deadline first) when a student has more than the
+        // limit or something is due; the rest move to the next school day, marked late if past their deadline
         const room=cap-(load[d]||0);
-        if(rest.length>cap&&room>0){ rest.splice(0,room).forEach(i=>place(i,d,false)); }
+        if(room>0&&(rest.length>cap||rest.some(i=>i.deadline<next))){ rest.splice(0,room).forEach(i=>place(i,d,false)); }
         if(!rest.length) break;
         if(next>to){ rest.forEach(i=>{i.day=next; i.beyond=true; out.push(i);}); rest=[]; break; }
         d=next;
       }
     });
-    return out.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
+    // a late measurement that lands after the goal's next period has started would just count for that period,
+    // so drop it and keep the next period's measurement instead (the missed one shows on the student's profile)
+    const keep=out.filter(x=>!(x.late&&out.some(y=>y!==x&&y.goal===x.goal&&y.slot.start<=x.day&&y.slot!==x.slot)));
+    return keep.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
   }
   // average measurements needed per school day from now to `to` (no limit applied)
   function need(I,cal,to,now,opts){
