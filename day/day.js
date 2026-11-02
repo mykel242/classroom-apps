@@ -118,8 +118,10 @@ function renderDay(){
     if(!q.cls){ h+=`<div class="per quiet"><span class="tm">${esc(hm(q.p.start))}</span><span class="bd"><span class="ttl"><b>${esc(q.label||q.p.name)}</b><span>${q.label?esc(q.p.name):''}</span></span></span></div>`; return; }
     const r=perRec(q.key), les=r.lesson&&Y.lessons[r.lesson], s=sug[q.key]||{kept:[],sug:[]}, laps=lapCount(q.cls,d);
     const isNow=nowM>=mins(q.p.start)&&nowM<mins(q.p.end||'23:59');
-    const chips=s.kept.map(id=>{const g=I.goals[id]; return `<span class="chip ${recorded(id,d)?'done':'keep'}">${recorded(id,d)?'✓ ':''}${esc(nameAny(g.sid))}</span>`;})
-      .concat(s.sug.map(u=>`<span class="chip sug">${u.group?esc(u.group.name)+' · '+u.items.length:esc(nameAny(u.items[0].g.sid))}</span>`));
+    // chip label: student name plus the goal's area, so two goals for one student are easy to tell apart
+    const lab=g=>esc(nameAny(g.sid))+(g.area?' · '+esc(g.area):'');
+    const chips=s.kept.map(id=>{const g=I.goals[id]; return `<span class="chip ${recorded(id,d)?'done':'keep'}">${recorded(id,d)?'✓ ':''}${lab(g)}</span>`;})
+      .concat(s.sug.map(u=>`<span class="chip sug">${u.group?esc(u.group.name)+' · '+u.items.length:lab(u.items[0].g)}</span>`));
     h+=`<button type="button" class="per${isNow?' now':''}" data-k="${esc(q.key)}"><span class="tm">${esc(hm(q.p.start))}<small>${esc(q.p.name)}</small></span><span class="bd">
       <span class="ttl"><b>${esc(q.label)}</b>${ty==='remote'?'<span>remote</span>':''}</span>
       <span class="les${les?'':' none'}">${les?esc(les.title):'Plan lesson…'}${les&&les.files&&les.files.length?` <span class="chip">📎 ${les.files.length}</span>`:''}${r.continued?' <span class="chip cont">continued</span>':''}${r.did?' <span class="chip done">✓ notes</span>':''}</span>
