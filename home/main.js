@@ -211,7 +211,7 @@ $('menuBtn').addEventListener('click',()=>openSheet(`<button class="item" id="mS
   <button class="item" id="mReport">Weekly report…</button>
   <button class="item" id="mCsvM">Copy measurements as CSV</button>
   <button class="item" id="mCsv">Copy activity log as CSV</button>
-  <hr><a class="item btn" href="../day/">Day Planner</a><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>`,
+  <hr><a class="item btn" href="../planner/">Day Planner</a><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>`,
   el=>{el.querySelector('#mSched').addEventListener('click',schedSheet);
     el.querySelector('#mExport').addEventListener('click',()=>HomeBackup.exportSheet());
     el.querySelector('#mImport').addEventListener('click',()=>HomeBackup.importSheet());
