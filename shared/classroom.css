@@ -94,3 +94,19 @@ button:disabled{opacity:.4;cursor:default}
 .appver button{min-height:40px;font-size:14px;padding:0 12px}
 #netstate{color:var(--part);font-weight:600}
 @media print{.appver{display:none!important}}
+
+/* bottom bar shared by every part of the app */
+:root{--navh:58px}
+body.has-nav{padding-bottom:calc(var(--navh) + env(safe-area-inset-bottom,0px))}
+.appnav{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;background:var(--card);border-top:1px solid var(--line);
+  height:calc(var(--navh) + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
+.appnav a,.appnav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:0;padding:0;border:0;border-radius:0;background:none;
+  color:var(--muted);font:600 12px var(--sans);text-decoration:none}
+.appnav span{font-size:20px;line-height:1}
+.appnav a[aria-current="page"]{color:var(--accent)}
+.appnav em{font-style:normal}
+.appnav #navBackup.due{color:var(--part)}
+.appnav #navBackup.due span{position:relative}
+.appnav #navBackup.due span::after{content:"";position:absolute;top:-2px;right:-8px;width:9px;height:9px;border-radius:50%;background:var(--not)}
+.scrim{z-index:30}
+@media print{.appnav{display:none!important}}

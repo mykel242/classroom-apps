@@ -321,22 +321,9 @@ function printProbes(d,goals,q){
 
 // ---------- menu, backup of day data
 function menu(){
-  openSheet(`<button class="item" id="mExp">Export day data</button><button class="item" id="mImp">Import day data…</button><input type="file" id="mFile" accept=".json,.txt,application/json,text/plain" hidden>
-    <hr><a class="item btn" href="../home/">Home: students, goals, activity</a><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>
-    <p class="hint" style="padding:0 6px">Day data (lessons, period notes, to-dos, days off, absences) is separate from the Home and Setup backups. Export it too.</p>`,
-  el=>{el.querySelector('#mExp').addEventListener('click',async()=>{ const txt=JSON.stringify({app:'classroom-day',format:1,exported:new Date().toISOString(),day:loadY()},null,2);
-      const name='classroom-day-'+today()+'.txt', file=new File([txt],name,{type:'text/plain'});
-      try{ if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:name}); toast('Shared'); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
-      const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click(); a.remove(); toast('Saved to Downloads');});
-    el.querySelector('#mImp').addEventListener('click',()=>el.querySelector('#mFile').click());
-    el.querySelector('#mFile').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0]; if(!f) return; const rd=new FileReader();
-      rd.onload=()=>{ let raw; try{raw=JSON.parse(String(rd.result));}catch(x){toast('That file isn\'t a day backup'); return;} const inc=raw&&raw.day; if(!inc||raw.app!=='classroom-day'){toast('That file isn\'t a day backup'); return;}
-        Y=loadY(); let n=0; const newer=(a,b)=>!a||(b&&(b.updated||0)>(a.updated||0));
-        ['lessons','periods'].forEach(k=>Object.keys(inc[k]||{}).forEach(id=>{if(newer(Y[k][id],inc[k][id])){Y[k][id]=inc[k][id]; n++;}}));
-        (inc.todos||[]).forEach(t=>{const i=Y.todos.findIndex(x=>x.id===t.id); if(i<0){Y.todos.push(t); n++;} else if(newer(Y.todos[i],t)){Y.todos[i]=t; n++;}});
-        ['days','absent','notes','links'].forEach(k=>Object.keys(inc[k]||{}).forEach(id=>{if(Y[k][id]===undefined){Y[k][id]=inc[k][id]; n++;}}));
-        saveY(); closeSheet(); toast('Imported '+plural(n,'change')); render(); };
-      rd.readAsText(f);});});
+  openSheet(`<button class="item" id="mBk">Backup and restore…</button>
+    <hr><a class="item btn" href="../home/">Students, goals and activity</a><a class="item btn" href="../lap/">Lap Tracker</a><a class="item btn" href="../setup/">Classroom setup</a>`,
+  el=>{el.querySelector('#mBk').addEventListener('click',()=>{closeSheet(); if(window.ClassroomBackup) ClassroomBackup.open();});});
 }
 
 addEventListener('storage',()=>{loadAll(); render();});

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2a5f9e">
 <title>Classroom Setup</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="../app.webmanifest">
 <link rel="icon" href="../lap/icon.svg">
 <link rel="stylesheet" href="../shared/classroom.css">
 <style>
@@ -568,6 +568,7 @@ $('bellCopy').addEventListener('click',()=>{fresh(); bell().periods.forEach(p=>{
 let t0='classes'; try{t0=sessionStorage.getItem('setupTab')||'classes'}catch(e){} if(!$('tab-'+t0)) t0='classes';
 showTab(t0);
 </script>
+<script src="../shared/bundle.js"></script>
 <script src="../shared/version.js"></script>
 <script src="../shared/app.js"></script>
 </body>
