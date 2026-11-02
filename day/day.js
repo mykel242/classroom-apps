@@ -104,13 +104,17 @@ $('week').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b
 
 function renderDay(){
   const d=sel, t=today(), ty=dayType(d), per=periodsOn(d), sug=suggestions(d), away=absentOn(d);
-  const nowM=d===t?new Date().getHours()*60+new Date().getMinutes():-1;
+  const nowM=d===t&&ty!=='off'?new Date().getHours()*60+new Date().getMinutes():-1; let nowDrawn=false;
+  const nowLine=txt=>`<div class="nowline"><span>Now ${esc(hm(String(Math.floor(nowM/60)).padStart(2,'0')+':'+String(nowM%60).padStart(2,'0')))} · ${esc(txt)}</span></div>`;
   let h=`<div class="dayh"><h1>${d===t?'Today · ':''}${esc(dayName(d))}</h1>
     ${isWeekend(d)?'':`<div class="seg" id="dType">${[['school','School'],['remote','Remote'],['off','No school']].map(([k,l])=>`<button type="button" data-ty="${k}" aria-pressed="${ty===k}">${l}</button>`).join('')}</div>`}
     ${d!==t?'<button class="ghost" id="goToday" style="min-height:38px">Today</button>':''}<button class="ghost" id="print" style="min-height:38px">Print</button></div>`;
   if(ty==='off'){ h+=`<div class="card off-card">${isWeekend(d)?'Weekend':'No school'}${(Y.days[d]||{}).note?' · '+esc(Y.days[d].note):''}</div>`; }
   else if(!per.length){ h+=`<div class="card"><b>No bell schedule yet.</b><span class="meta">Add your periods in <a class="lnk" href="../setup/">Classroom setup → Calendar</a> to plan each period here.</span></div>`; }
-  else per.forEach(q=>{
+  else per.forEach((q,i)=>{
+    // a "now" line before the period in progress, or between periods during passing time
+    if(nowM>=0&&!nowDrawn){ const st=mins(q.p.start), en=mins(q.p.end||'23:59');
+      if(nowM<en){ nowDrawn=true; h+=nowLine(nowM>=st?`${q.label||q.p.name} until ${hm(q.p.end)}`:`next: ${q.label||q.p.name} at ${hm(q.p.start)}`); } }
     if(!q.cls){ h+=`<div class="per quiet"><span class="tm">${esc(hm(q.p.start))}</span><span class="bd"><span class="ttl"><b>${esc(q.label||q.p.name)}</b><span>${q.label?esc(q.p.name):''}</span></span></span></div>`; return; }
     const r=perRec(q.key), les=r.lesson&&Y.lessons[r.lesson], s=sug[q.key]||{kept:[],sug:[]}, laps=lapCount(q.cls,d);
     const isNow=nowM>=mins(q.p.start)&&nowM<mins(q.p.end||'23:59');
@@ -118,9 +122,10 @@ function renderDay(){
       .concat(s.sug.map(u=>`<span class="chip sug">${u.group?esc(u.group.name)+' · '+u.items.length:esc(nameAny(u.items[0].g.sid))}</span>`));
     h+=`<button type="button" class="per${isNow?' now':''}" data-k="${esc(q.key)}"><span class="tm">${esc(hm(q.p.start))}<small>${esc(q.p.name)}</small></span><span class="bd">
       <span class="ttl"><b>${esc(q.label)}</b>${ty==='remote'?'<span>remote</span>':''}</span>
-      <span class="les${les?'':' none'}">${les?esc(les.title):'Plan lesson…'}${r.continued?' <span class="chip cont">continued</span>':''}${r.did?' <span class="chip done">✓ notes</span>':''}</span>
+      <span class="les${les?'':' none'}">${les?esc(les.title):'Plan lesson…'}${les&&les.files&&les.files.length?` <span class="chip">📎 ${les.files.length}</span>`:''}${r.continued?' <span class="chip cont">continued</span>':''}${r.did?' <span class="chip done">✓ notes</span>':''}</span>
       ${chips.length||laps?`<span class="row">${chips.join('')}${laps?`<span class="chip">${plural(laps,'lap')}</span>`:''}</span>`:''}</span></button>`;
   });
+  if(nowM>=0&&!nowDrawn&&per.length) h+=nowLine('school day is over');
   // tiles
   const todos=Y.todos.filter(x=>!x.done&&x.date<=d), fus=A.entries.filter(e=>e.fu&&e.fu.date&&!e.fu.done&&e.fu.date<=d);
   const note=Y.notes[d]||'';
@@ -175,8 +180,17 @@ function periodSheet(key){
       const l=choice&&choice!=='__new'?Y.lessons[choice]:null;
       el.querySelector('#lesEdit').innerHTML=choice?`<input type="text" id="lTitle" placeholder="Lesson title, e.g. IM 6.3.4 Ratios" value="${esc(l?l.title:'')}">
         <input type="url" id="lLink" placeholder="Link to lesson plan / materials (Drive)" value="${esc(l?l.link||'':'')}">${l&&l.link?`<a class="lnk" href="${esc(l.link)}" target="_blank" rel="noopener">Open plan ↗</a>`:''}
+        <span class="lbl" style="margin-top:4px">Scaffolds &amp; files</span><div id="lFiles"></div><button type="button" class="ghost" id="addFile" style="align-self:flex-start;min-height:38px">+ Add a file</button>
         <textarea id="lNotes" placeholder="Plan notes">${esc(l?l.notes||'':'')}</textarea>`:'';
+      if(choice){ files=(l&&Array.isArray(l.files)?l.files:[]).map(f=>Object.assign({},f)); drawFiles(); }
     };
+    // scaffold / material links on the lesson: any number, each a name and a link
+    let files=[];
+    function drawFiles(){ const box=el.querySelector('#lFiles'); if(!box) return;
+      box.innerHTML=files.map((f,i)=>`<div class="bar" data-f="${i}" style="flex-wrap:nowrap"><input type="text" data-k="name" placeholder="Name (e.g. Scaffold: sentence frames)" value="${esc(f.name||'')}" style="flex:1;min-width:0"><input type="url" data-k="url" placeholder="Link" value="${esc(f.url||'')}" style="flex:1.3;min-width:0">${f.url?`<a class="lnk" href="${esc(f.url)}" target="_blank" rel="noopener" aria-label="Open">↗</a>`:''}<button type="button" class="plain" data-x="${i}" aria-label="Remove" style="min-height:36px;padding:0 6px;color:var(--not)">✕</button></div>`).join('')||'<span class="meta">None</span>';}
+    el.addEventListener('input',e=>{const r=e.target.closest('#lFiles [data-f]'); if(!r) return; files[+r.dataset.f][e.target.dataset.k]=e.target.value;});
+    el.addEventListener('click',e=>{ if(e.target.id==='addFile'){ files.push({name:'',url:''}); drawFiles(); const ins=el.querySelectorAll('#lFiles input[data-k=name]'); if(ins.length) ins[ins.length-1].focus(); }
+      const x=e.target.closest('#lFiles [data-x]'); if(x){ files.splice(+x.dataset.x,1); drawFiles(); } });
     drawLes();
     el.querySelector('#lesList').addEventListener('change',e=>{if(e.target.name!=='les') return; choice=e.target.value; drawLes();
       if(choice&&choice!=='__new'&&prev&&choice===prev.id) el.querySelector('#cont').checked=true; });
@@ -197,9 +211,10 @@ function periodSheet(key){
       if(sk) editP(p=>{sk.dataset.skip.split(',').forEach(id=>{if(!p.skip.includes(id)) p.skip.push(id);});});
       if(rm) editP(p=>{p.probes=p.probes.filter(id=>id!==rm.dataset.rm);});});
     drawProbes();
+    const cleanFiles=()=>files.map(f=>({name:(f.name||'').trim().slice(0,100),url:(f.url||'').trim()})).filter(f=>f.url||f.name);
     const save=()=>{ Y=loadY(); const p=Object.assign({probes:[],skip:[]},Y.periods[key]||{});
-      if(choice==='__new'){ const t=(el.querySelector('#lTitle')||{}).value; if(t&&t.trim()){ const id=uid('l'); Y.lessons[id]={id,cls:q.cls,subj:q.subj||'',title:t.trim().slice(0,120),link:(el.querySelector('#lLink').value||'').trim(),notes:el.querySelector('#lNotes').value.trim(),updated:Date.now()}; p.lesson=id; choice=id; } else p.lesson=''; }
-      else if(choice){ const l=Y.lessons[choice]; if(l){ const t=el.querySelector('#lTitle').value.trim(); if(t) l.title=t.slice(0,120); l.link=el.querySelector('#lLink').value.trim(); l.notes=el.querySelector('#lNotes').value.trim(); l.updated=Date.now(); } p.lesson=choice; }
+      if(choice==='__new'){ const t=(el.querySelector('#lTitle')||{}).value; if(t&&t.trim()){ const id=uid('l'); Y.lessons[id]={id,cls:q.cls,subj:q.subj||'',title:t.trim().slice(0,120),link:(el.querySelector('#lLink').value||'').trim(),files:cleanFiles(),notes:el.querySelector('#lNotes').value.trim(),updated:Date.now()}; p.lesson=id; choice=id; } else p.lesson=''; }
+      else if(choice){ const l=Y.lessons[choice]; if(l){ const t=el.querySelector('#lTitle').value.trim(); if(t) l.title=t.slice(0,120); l.link=el.querySelector('#lLink').value.trim(); l.files=cleanFiles(); l.notes=el.querySelector('#lNotes').value.trim(); l.updated=Date.now(); } p.lesson=choice; }
       else p.lesson='';
       p.continued=el.querySelector('#cont').checked&&!!p.lesson; p.did=el.querySelector('#did').value.trim(); p.didLink=el.querySelector('#didLink').value.trim(); p.updated=Date.now();
       Y.periods[key]=p; const al=el.querySelector('#actLink').value.trim(); if(al) Y.links[q.cls]=al; else delete Y.links[q.cls]; saveY(); };
@@ -284,7 +299,7 @@ function printDay(d){
   if(away.length) h+=`<p><b>Absent:</b> ${esc(away.join(', '))}</p>`;
   per.forEach(q=>{ const r=perRec(q.key), l=r.lesson&&Y.lessons[r.lesson], s=sug[q.key]||{kept:[],sug:[]};
     h+=`<div class="pp"><span class="tm">${esc(hm(q.p.start))}${q.p.end?'–'+esc(hm(q.p.end)):''}<br>${esc(q.p.name)}</span><span><b>${esc(q.label||'—')}</b>`;
-    if(q.cls){ h+=`${l?' · '+esc(l.title)+(r.continued?' (continued)':''):''}`;
+    if(q.cls){ h+=`${l?' · '+esc(l.title)+(r.continued?' (continued)':''):''}`; if(l&&l.files&&l.files.length) h+=`<div class="pg"><span>Files: ${esc(l.files.map(f=>f.name||f.url).join(' · '))}</span></div>`;
       const items=s.kept.map(id=>({g:I.goals[id],tag:''})).concat(s.sug.flatMap(u=>u.items.map(x=>({g:x.g,tag:'(suggested) '}))));
       items.forEach(x=>{h+=`<div class="pg"><span>${esc(x.tag)}<b>${esc(nameAny(x.g.sid))}</b> ${esc(goalShort(x.g,70))} · ${esc(IEP.critText(x.g.criteria||{}))}</span><span class="bx">${boxes(x.g)}</span></div>`;});
       h+=`<div class="lines"></div>`; }
@@ -326,3 +341,5 @@ addEventListener('storage',()=>{loadAll(); render();});
 addEventListener('pageshow',e=>{if(e.persisted){loadAll(); render();}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){loadAll(); render();}});
 render();
+// keep the now line current
+setInterval(()=>{ if(sel===today()&&$('sheetWrap').hidden) renderDay(); },60000);
