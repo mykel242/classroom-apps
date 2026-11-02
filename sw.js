@@ -1,5 +1,5 @@
 // One service worker for the whole Classroom app. Network first: newest files when online, saved copy offline.
-const BUILD='54';
+const BUILD='55';
 const NAME='classroom-'+BUILD;
 const FILES=["./", "index.html", "app.webmanifest", "planner/", "planner/day.js", "planner/icon-512.png", "planner/icon.svg", "planner/index.html", "home/", "home/activity.js", "home/backup.js", "home/groups.js", "home/icon-512.png", "home/icon.svg", "home/index.html", "home/main.js", "home/paste.js", "home/prep.js", "home/report.js", "home/students.js", "lap/", "lap/icon-512.png", "lap/icon.svg", "lap/index.html", "setup/", "setup/index.html", "shared/app.js", "shared/backup.js", "shared/bundle.js", "shared/classroom.css", "shared/classroom.js", "shared/goalgroups.js", "shared/iepcore.js", "shared/iepparse.js", "shared/version.js"];
 self.addEventListener('install',e=>{

@@ -1,5 +1,46 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Classroom</title><link rel="manifest" href="app.webmanifest"><link rel="icon" href="planner/icon.svg">
-<meta http-equiv="refresh" content="0; url=planner/">
-<style>body{font:18px system-ui,sans-serif;margin:0;padding:32px 16px;background:#f2f4f6;color:#121a22}a{color:#c2410c;font-weight:700}</style></head>
-<body><p>Opening the planner… <a href="planner/">Tap here</a> if it doesn't open. The IEP Goal Cleaner for the school laptop is at <a href="clean/">clean/</a>.</p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c2410c">
+<title>Classroom</title>
+<link rel="manifest" href="app.webmanifest">
+<link rel="icon" href="planner/icon.svg">
+<link rel="stylesheet" href="shared/classroom.css">
+<script>
+  // opened as the installed app: go straight to the planner
+  if(matchMedia('(display-mode: standalone)').matches||navigator.standalone) location.replace('planner/');
+</script>
+<style>
+main{max-width:560px;gap:16px;padding-top:24px}
+.logo{width:72px;height:72px;border-radius:16px}
+.parts a{display:flex;justify-content:space-between;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg);text-decoration:none;font-weight:600}
+.parts{display:flex;flex-direction:column;gap:8px}
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="planner/icon-512.png" alt="">
+  <h1>Classroom</h1>
+  <p class="hint" style="font-size:16px">Planner, lap tracker, students and goals, and setup in one app. Everything stays on this device and works without wifi once installed.</p>
+  <button class="primary" id="install" hidden>Install Classroom</button>
+  <p class="hint" id="how">To install: tap <b>Share → Install and create shortcut → Install</b> (or <b>⋮ → Add to Home screen</b>). Install from this page.</p>
+  <div class="parts">
+    <a href="planner/">Planner <span>›</span></a>
+    <a href="lap/">Lap Tracker <span>›</span></a>
+    <a href="home/">Students &amp; goals <span>›</span></a>
+    <a href="setup/">Setup <span>›</span></a>
+    <a href="clean/">IEP Goal Cleaner (school laptop) <span>›</span></a>
+  </div>
+</main>
+<script>
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js',{scope:'./'}).catch(()=>{});
+  let ev=null;
+  addEventListener('beforeinstallprompt',e=>{e.preventDefault(); ev=e; document.getElementById('install').hidden=false;});
+  document.getElementById('install').addEventListener('click',async()=>{ if(!ev) return; ev.prompt(); const r=await ev.userChoice; ev=null; document.getElementById('install').hidden=true;
+    document.getElementById('how').textContent=r.outcome==='accepted'?'Installing… the Classroom icon appears on your home screen in a few seconds.':'Install cancelled.';});
+  addEventListener('appinstalled',()=>{document.getElementById('how').textContent='Installed. Open Classroom from your home screen.';});
+</script>
+</body>
+</html>
